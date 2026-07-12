@@ -155,7 +155,7 @@ export default function Onboarding() {
         <form onSubmit={handleSubmit} className="space-y-8">
           
           {/* Card 1: Business Identity */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-blue-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Building2 className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği (WhatsApp Bağlantısı)</h2>
@@ -195,7 +195,7 @@ export default function Onboarding() {
           </div>
 
           {/* Card 2: Business Hours (Structured) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-indigo-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <RefreshCw className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">Çalışma Saatleri (Haftalık Program) *</h2>
@@ -221,7 +221,7 @@ export default function Onboarding() {
           </div>
 
           {/* Card 3: Location and Policies */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-cyan-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <FileText className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">Temel Bilgiler ve Kurallar</h2>
@@ -276,7 +276,7 @@ export default function Onboarding() {
           </div>
 
           {/* Card 4: Services Ingestion (Dynamic) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-emerald-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-blue-500" />
@@ -344,8 +344,8 @@ export default function Onboarding() {
             </div>
           </div>
 
-          {/* Card 5: FAQs Ingestion (Dynamic) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          {/* Card 5: FAQs Ingestion (Dynamic Stacked Layout) */}
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-purple-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-blue-500" />
@@ -361,47 +361,58 @@ export default function Onboarding() {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               {faqs.map((faq, index) => (
-                <div key={index} className="flex gap-4 items-start bg-slate-950/40 border border-slate-850 p-4 rounded-xl relative group">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow">
+                <div key={index} className="flex gap-4 items-start bg-slate-950/40 border border-slate-850 p-6 rounded-xl relative group">
+                  <div className="flex-grow space-y-4">
+                    {/* Question (Full Width on Top) */}
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Müşterinin Sorabileceği Soru</label>
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Soru (Müşterinin Sorabileceği Soru) *
+                      </label>
                       <input
                         type="text"
+                        required
                         placeholder="Örn: Otoparkınız var mı?"
                         value={faq.question}
                         onChange={(e) => handleFaqChange(index, 'question', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                       />
                     </div>
+
+                    {/* Answer Textarea (Full Width Stacked Below) */}
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Yapay Zeka Tarafından Verilecek Cevap</label>
-                      <input
-                        type="text"
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Cevap (Yapay Zeka Tarafından Verilecek Detaylı Cevap) *
+                      </label>
+                      <textarea
+                        required
+                        rows={3}
                         placeholder="Örn: Evet, salonumuzun önünde ücretsiz müşteri otoparkımız mevcuttur."
                         value={faq.answer}
                         onChange={(e) => handleFaqChange(index, 'answer', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
                       />
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFaq(index)}
-                    className="mt-6 p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
-                    title="Soruyu Sil"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {faqs.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFaq(index)}
+                      className="mt-6 p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
+                      title="Soruyu Sil"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
           {/* Pricing Notes & Limits Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-slate-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Sparkles className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">Ek Ayarlar ve Abonelik Paketi</h2>
