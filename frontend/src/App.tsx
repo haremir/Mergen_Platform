@@ -1,9 +1,9 @@
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
-import { Sparkles, LayoutDashboard, UserCheck, Code } from 'lucide-react';
+import { Sparkles, LayoutDashboard, UserCheck, Code, Activity } from 'lucide-react';
 
-function Navigation() {
+function Sidebar() {
   const location = useLocation();
 
   const isActive = (path: string) => {
@@ -11,48 +11,59 @@ function Navigation() {
   };
 
   return (
-    <aside className="w-full lg:w-[260px] bg-[#0c0d14] border-b lg:border-b-0 lg:border-r border-[#1f202b] flex flex-col shrink-0">
-      {/* Brand Header */}
-      <div className="h-16 flex items-center gap-3 px-6 border-b border-[#1f202b] select-none">
-        <Sparkles className="w-6 h-6 text-violet-500 animate-pulse" />
-        <span className="font-extrabold text-lg bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent tracking-wide">
-          MERGEN PANEL
-        </span>
+    <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col justify-between shrink-0 h-screen sticky top-0">
+      <div>
+        {/* Brand/Logo Section */}
+        <div className="h-20 flex items-center gap-3 px-6 border-b border-gray-800">
+          <div className="w-9 h-9 bg-blue-600/10 border border-blue-500/30 rounded-xl flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-blue-500" />
+          </div>
+          <span className="font-bold text-lg text-white tracking-tight">
+            Mergen Platform
+          </span>
+        </div>
+
+        {/* Navigation Section */}
+        <nav className="p-4 space-y-1.5">
+          <div className="px-3 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Navigation
+          </div>
+          <Link
+            to="/onboarding"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              isActive('/onboarding')
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+            }`}
+          >
+            <UserCheck className="w-5 h-5" />
+            Client Onboarding
+          </Link>
+
+          <Link
+            to="/dashboard"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              isActive('/dashboard')
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            Control Panel
+          </Link>
+        </nav>
       </div>
 
-      {/* Nav Links */}
-      <nav className="p-4 flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible shrink-0 lg:flex-grow">
-        {/* Onboarding */}
-        <Link
-          to="/onboarding"
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
-            isActive('/onboarding')
-              ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/10'
-              : 'text-gray-400 hover:bg-[#181922] hover:text-white'
-          }`}
-        >
-          <UserCheck className="w-5 h-5" />
-          Client Onboarding
-        </Link>
-
-        {/* Dashboard */}
-        <Link
-          to="/dashboard"
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
-            isActive('/dashboard')
-              ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/10'
-              : 'text-gray-400 hover:bg-[#181922] hover:text-white'
-          }`}
-        >
-          <LayoutDashboard className="w-5 h-5" />
-          Control Panel
-        </Link>
-      </nav>
-
-      {/* Bottom version badge */}
-      <div className="hidden lg:flex items-center gap-2 p-6 border-t border-[#1f202b] text-[10px] text-gray-500 font-mono mt-auto">
-        <Code className="w-3.5 h-3.5" />
-        <span>Version 7.1.0 (Beta)</span>
+      {/* Footer Version Info */}
+      <div className="p-4 border-t border-gray-800 flex items-center justify-between text-xs text-gray-500 font-mono">
+        <span className="flex items-center gap-1.5">
+          <Activity className="w-3.5 h-3.5 text-emerald-500" />
+          System Normal
+        </span>
+        <span className="flex items-center gap-1">
+          <Code className="w-3 h-3" />
+          v7.2.0
+        </span>
       </div>
     </aside>
   );
@@ -61,12 +72,12 @@ function Navigation() {
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-[#07080c] flex flex-col lg:flex-row font-sans">
+      <div className="min-h-screen bg-gray-950 flex font-sans">
         {/* Sidebar */}
-        <Navigation />
+        <Sidebar />
 
         {/* Main Content Area */}
-        <main className="flex-grow overflow-y-auto">
+        <main className="flex-grow h-screen overflow-y-auto">
           <Routes>
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Dashboard />} />
