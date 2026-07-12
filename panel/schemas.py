@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field, field_validator
 class OnboardingRequest(BaseModel):
     """Payload for POST /api/onboarding.
 
-    Maps to the Desk product's required knowledge form fields.
+    Maps to the Desk product's rich, structured knowledge request.
     All string fields are stripped of leading/trailing whitespace.
     """
 
@@ -42,11 +42,11 @@ class OnboardingRequest(BaseModel):
         description="E.164 WhatsApp phone number to register (e.g. '+905551234567').",
         examples=["+905551234567"],
     )
-    business_hours: str = Field(
+    # Structured business_hours: Dict[str, str] mapping days like "monday" to "09:00-18:00"
+    business_hours: Dict[str, str] = Field(
         ...,
-        min_length=3,
-        description="Operating hours (e.g. 'Mon-Fri 09:00-19:00, Sat 10:00-17:00').",
-        examples=["Mon-Fri 09:00-19:00, Sat 10:00-17:00"],
+        description="Operating hours per day.",
+        examples=[{"monday": "09:00-18:00", "tuesday": "09:00-18:00"}],
     )
     location: str = Field(
         ...,
@@ -66,15 +66,21 @@ class OnboardingRequest(BaseModel):
         description="Phone, e-mail, or social handles for the business.",
         examples=["reception@acme.com | +90 212 555 0000"],
     )
-    # Optional enrichment fields
-    services: Optional[str] = Field(
-        default=None,
-        description="Comma-separated list of offered services.",
-        examples=["Haircut, Beard trim, Coloring"],
+    # List of FAQs: list of dicts mapping "question" to "answer"
+    faqs: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="List of frequently asked questions with answers.",
+        examples=[[{"question": "Randevu iptal edilebilir mi?", "answer": "Evet, 24 saat kalana kadar."}]],
+    )
+    # List of Services: list of dicts containing "name", "price", "description"
+    services: List[Dict[str, str]] = Field(
+        ...,
+        description="List of offered services with pricing and descriptions.",
+        examples=[[{"name": "Haircut", "price": "150 TL", "description": "Classic hair cutting."}]],
     )
     pricing: Optional[str] = Field(
         default=None,
-        description="Pricing table or price range.",
+        description="Generic pricing notes or overall price list text.",
         examples=["Haircut: 150 TL, Beard trim: 80 TL"],
     )
     plan: Optional[str] = Field(
@@ -83,9 +89,8 @@ class OnboardingRequest(BaseModel):
         examples=["starter", "business", "enterprise"],
     )
 
-    @field_validator("business_name", "phone_number", "business_hours",
-                     "location", "cancellation_policy", "contact_info",
-                     mode="before")
+    @field_validator("business_name", "phone_number", "location", 
+                     "cancellation_policy", "contact_info", mode="before")
     @classmethod
     def strip_whitespace(cls, v: Any) -> Any:
         if isinstance(v, str):
@@ -109,6 +114,33 @@ class OnboardingResponse(BaseModel):
     persona: Optional[str] = Field(default=None)
     error: Optional[str] = Field(default=None)
     missing_fields: Optional[List[str]] = Field(default=None)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard Control / Settings
+# ---------------------------------------------------------------------------
+
+class DashboardControlRequest(BaseModel):
+    """Payload to configure real-time tenant settings."""
+
+    bot_active: bool = Field(
+        default=True,
+        description="Toggle bot active processing state.",
+    )
+    system_prompt_override: Optional[str] = Field(
+        default=None,
+        description="Custom system persona prompt override.",
+    )
+
+
+class DashboardControlResponse(BaseModel):
+    """Response for updating tenant settings."""
+
+    status: str = "success"
+    message: str
+    tenant_id: str
+    bot_active: bool
+    system_prompt_override: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -168,5 +200,5 @@ class PlanResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
-    version: str = "7.1.0"
+    version: str = "7.3.0"
     service: str = "Mergen Panel API"
