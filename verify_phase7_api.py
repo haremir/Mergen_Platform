@@ -119,11 +119,12 @@ print("--- Step 3: POST /api/onboarding -- Happy Path (mocked deps) ---")
 VALID_PAYLOAD = {
     "business_name":      "Acme Barber Istanbul",
     "phone_number":       "+905550001234",
-    "business_hours":     "Mon-Fri 09:00-19:00, Sat 10:00-17:00",
+    "business_hours":     {"monday": "09:00-19:00", "tuesday": "09:00-19:00"},
     "location":           "Kadikoy Mah. Ataturk Cad. No:12, Kadikoy/Istanbul",
     "cancellation_policy":"24 hours advance notice required for cancellations.",
     "contact_info":       "reception@acme.com | +90 212 555 0000",
-    "services":           "Haircut, Beard trim, Coloring, Hair wash",
+    "services":           [{"name": "Haircut", "price": "150 TL", "description": "Classic hair cut"}],
+    "faqs":               [{"question": "Randevu iptal edilebilir mi?", "answer": "Evet, 24 saat kalana kadar."}],
     "pricing":            "Haircut: 150 TL, Beard trim: 80 TL",
     "plan":               "starter",
 }
@@ -172,7 +173,7 @@ print("--- Step 4: POST /api/onboarding -- Missing Fields (422) ---")
 MISSING_PAYLOAD = {
     "business_name":  "Incomplete Corp",
     "phone_number":   "+905559999999",
-    # business_hours, location, cancellation_policy, contact_info MISSING
+    # business_hours, location, cancellation_policy, contact_info, services MISSING
 }
 
 resp = client.post("/api/onboarding", json=MISSING_PAYLOAD)
@@ -185,7 +186,8 @@ assert "business_hours" in missing_fields_reported
 assert "location" in missing_fields_reported
 assert "cancellation_policy" in missing_fields_reported
 assert "contact_info" in missing_fields_reported
-print(f"{PASS} All 4 missing required fields correctly reported in 422 response.")
+assert "services" in missing_fields_reported
+print(f"{PASS} All 5 missing required fields correctly reported in 422 response.")
 
 # ===========================================================================
 # STEP 5 -- POST /api/onboarding: short field value (422)
@@ -265,6 +267,25 @@ print(f"{PASS} CORS: http://localhost:3000 (Next.js dev server) is allowed.")
 print(f"{PASS} CORS: http://127.0.0.1:3000 is allowed.")
 
 # ===========================================================================
+# STEP 9 -- Settings configuration check
+# ===========================================================================
+print()
+print("--- Step 9: POST /api/tenant/{tenant_id}/settings ---")
+
+settings_payload = {
+    "bot_active": False,
+    "system_prompt_override": "Yeni deneme sistem promptu"
+}
+resp = client.post(f"/api/tenant/{FAKE_TENANT}/settings", json=settings_payload)
+assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+settings_data = resp.json()
+assert settings_data["status"] == "success"
+assert settings_data["bot_active"] is False
+assert settings_data["system_prompt_override"] == "Yeni deneme sistem promptu"
+print(f"{PASS} POST /api/tenant/.../settings -> 200 OK")
+print(f"       message='{settings_data['message']}'")
+
+# ===========================================================================
 # Cleanup
 # ===========================================================================
 clear_test_overrides()
@@ -274,7 +295,7 @@ clear_test_overrides()
 # ===========================================================================
 print()
 print("=" * 60)
-print(" All Phase 7.1 checks completed successfully.")
+print(" All Phase 7.3 backend checks completed successfully.")
 print("=" * 60)
 print()
 print(" Start the API server with:")
