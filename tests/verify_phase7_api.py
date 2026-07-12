@@ -34,7 +34,7 @@ from unittest.mock import MagicMock
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 for _p in (
     _ROOT,
     os.path.join(_ROOT, "shared"),
