@@ -261,9 +261,9 @@ class DeskOnboardingService:
             len(knowledge_fields),
         )
         try:
-            self._rag.index_knowledge_fields(knowledge_fields)
-            result["knowledge_fields_ingested"] = len(knowledge_fields)
-            logger.info("DeskOnboardingService: Step 3 OK — RAG ingestion complete.")
+            indexed = self._rag.ingest_fields(tenant_id, knowledge_fields)
+            result["knowledge_fields_ingested"] = indexed
+            logger.info("DeskOnboardingService: Step 3 OK — RAG ingestion complete (%d indexed).", indexed)
         except Exception as exc:
             logger.error(
                 "DeskOnboardingService: RAG ingestion FAILED tenant=%s — %s",
