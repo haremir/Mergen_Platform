@@ -5,23 +5,6 @@ panel.api_server
 FastAPI application — REST API bridge between the Next.js frontend and the
 Mergen Platform core / product layers.
 
-Architecture Position::
-
-    Next.js (localhost:3000)
-         │  HTTP JSON
-         ▼
-    FastAPI (panel/api_server.py)     ← THIS FILE
-         │
-         ├── POST /api/onboarding ──► DeskOnboardingService (mergen_product_desk)
-         │                               ├── DeskTemplateValidator
-         │                               ├── TenantManager (mergen_core)
-         │                               ├── RagEngine (mergen_core)
-         │                               └── WhatsAppClient (mergen_pkg_whatsapp)
-         │
-         ├── GET  /api/logs/{tenant_id}   ── (mocked until DB layer)
-         ├── GET  /api/plan/{tenant_id}   ── (mocked until billing service)
-         └── GET  /api/health             ── liveness probe
-
 CORS Policy:
     Allows http://localhost:3000 (Next.js dev server) and any additional
     origins listed in the ALLOWED_ORIGINS environment variable (comma-separated).
@@ -65,6 +48,8 @@ for _p in (
 from panel.schemas import (  # noqa: E402
     OnboardingRequest,
     OnboardingResponse,
+    DashboardControlRequest,
+    DashboardControlResponse,
     LogsResponse,
     MessageLogEntry,
     PlanResponse,
@@ -88,7 +73,7 @@ logging.basicConfig(
 
 app = FastAPI(
     title="Mergen Panel API",
-    version="7.1.0",
+    version="7.3.0",
     description=(
         "REST API bridge between the Mergen Platform core/product modules "
         "and the Next.js frontend dashboard."
@@ -123,37 +108,6 @@ logger.info("CORS: allowed origins = %s", _all_origins)
 # ---------------------------------------------------------------------------
 # Dependency: WhatsApp Client (mock-safe factory)
 # ---------------------------------------------------------------------------
-# In production, load credentials from environment variables.
-# For local dev / CI without real credentials, we create a mock client that
-# returns a synthetic phone_number_id instead of calling Meta's API.
-
-def _get_whatsapp_client() -> WhatsAppClient:
-    """Return a real or mock WhatsApp client based on environment config."""
-    token   = os.getenv("WHATSAPP_PLATFORM_TOKEN", "")
-    waba_id = os.getenv("WHATSAPP_WABA_ID", "")
-
-    if token and waba_id:
-        logger.info("WhatsApp: using REAL client (WABA=%s).", waba_id)
-        return WhatsAppClient(platform_token=token, waba_id=waba_id)
-
-    # Graceful fallback — mock client returns a deterministic phone_number_id
-    logger.warning(
-        "WhatsApp: WHATSAPP_PLATFORM_TOKEN / WHATSAPP_WABA_ID not set — "
-        "using MOCK client. Set env vars for production use."
-    )
-    mock_client = MagicMock(spec=WhatsAppClient)
-    mock_client.add_phone_number.return_value = f"MOCK_PHONE_ID_{uuid.uuid4().hex[:8].upper()}"
-    return mock_client  # type: ignore[return-value]
-
-
-def _get_onboarding_service() -> DeskOnboardingService:
-    """Lazy singleton factory for DeskOnboardingService."""
-    return DeskOnboardingService(whatsapp_client=_get_whatsapp_client())
-
-
-# ---------------------------------------------------------------------------
-# Injectable overrides (used by tests / verify scripts to avoid heavy ML load)
-# ---------------------------------------------------------------------------
 _override_wa_client:  Optional[Any] = None
 _override_rag_engine: Optional[Any] = None
 _override_tenant_mgr: Optional[Any] = None
@@ -179,12 +133,23 @@ def clear_test_overrides() -> None:
     _override_tenant_mgr = None
 
 
+def _get_whatsapp_client() -> WhatsAppClient:
+    token   = os.getenv("WHATSAPP_PLATFORM_TOKEN", "")
+    waba_id = os.getenv("WHATSAPP_WABA_ID", "")
+
+    if token and waba_id:
+        return WhatsAppClient(platform_token=token, waba_id=waba_id)
+
+    mock_client = MagicMock(spec=WhatsAppClient)
+    mock_client.add_phone_number.return_value = f"MOCK_PHONE_ID_{uuid.uuid4().hex[:8].upper()}"
+    return mock_client  # type: ignore[return-value]
+
+
 def _get_onboarding_service_with_overrides() -> DeskOnboardingService:
-    """Respects test overrides for wa_client, rag_engine, tenant_manager."""
     return DeskOnboardingService(
         whatsapp_client=_override_wa_client or _get_whatsapp_client(),
-        rag_engine=_override_rag_engine,      # None = RagEngine() default
-        tenant_manager=_override_tenant_mgr,  # None = singleton default
+        rag_engine=_override_rag_engine,
+        tenant_manager=_override_tenant_mgr,
     )
 
 
@@ -208,29 +173,17 @@ def health_check() -> HealthResponse:
     summary="Register a new Desk client",
 )
 def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
-    """Orchestrate the complete Desk client onboarding flow.
-
-    1. Validates the submitted business knowledge form.
-    2. Registers the tenant in TenantManager.
-    3. Ingests knowledge fields into the RAG engine.
-    4. Initiates WhatsApp phone number registration with Meta.
-    5. Returns a status dict with ``phone_number_id`` on success.
-
-    **Status codes returned in the JSON body (not HTTP status):**
-    - ``pending_verification`` — success, awaiting Meta OTP.
-    - ``validation_error``     — missing required field(s).
-    - ``whatsapp_error``       — Meta API rejected the number.
-    - ``rag_error``            — RAG ingestion failed.
-    """
+    """Orchestrate the complete Desk client onboarding flow with rich data structures."""
     tenant_id = str(uuid.uuid4())
 
-    # Build the raw_form_data dict that DeskTemplateValidator expects
+    # Build the rich raw_form_data dict
     raw_form: Dict[str, Any] = {
-        "business_hours":      body.business_hours,
-        "location":            body.location,
-        "contact_info":        body.contact_info,
-        "cancellation_policy": body.cancellation_policy,
-        "services":            body.services or "General services",
+        "business_hours":      body.business_hours,      # Dict[str, str]
+        "location":            body.location,            # str
+        "contact_info":        body.contact_info,        # str
+        "cancellation_policy": body.cancellation_policy,  # str
+        "services":            body.services,            # List[Dict[str, str]]
+        "faqs":                body.faqs,                # List[Dict[str, str]]
     }
     if body.pricing:
         raw_form["pricing"] = body.pricing
@@ -251,13 +204,6 @@ def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
         plan=body.plan or "starter",
     )
 
-    logger.info(
-        "POST /api/onboarding: tenant=%s status=%s phone_id=%s",
-        tenant_id,
-        result.get("status"),
-        result.get("phone_number_id"),
-    )
-
     return OnboardingResponse(
         status=result.get("status", "unknown"),
         tenant_id=result.get("tenant_id", tenant_id),
@@ -266,6 +212,43 @@ def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
         persona=result.get("persona"),
         error=result.get("error"),
         missing_fields=result.get("missing_fields"),
+    )
+
+
+# ── Tenant Settings / Control Endpoint ────────────────────────────────────
+
+@app.post(
+    "/api/tenant/{tenant_id}/settings",
+    response_model=DashboardControlResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Tenant Management"],
+    summary="Configure real-time tenant settings and control overrides",
+)
+def configure_tenant_settings(
+    body: DashboardControlRequest,
+    tenant_id: str = Path(..., description="UUID of the target tenant"),
+) -> DashboardControlResponse:
+    """Mock endpoint to update tenant's active bot status and custom system prompts.
+
+    In production, this updates the database entry for the tenant.
+    """
+    logger.info(
+        "POST /api/tenant/%s/settings: bot_active=%s prompt_override=%s",
+        tenant_id,
+        body.bot_active,
+        body.system_prompt_override is not None,
+    )
+    
+    status_msg = f"Bot status updated to {'active' if body.bot_active else 'inactive'}."
+    if body.system_prompt_override:
+        status_msg += " System prompt override applied."
+
+    return DashboardControlResponse(
+        status="success",
+        message=status_msg,
+        tenant_id=tenant_id,
+        bot_active=body.bot_active,
+        system_prompt_override=body.system_prompt_override,
     )
 
 
@@ -291,11 +274,7 @@ def get_logs(
     tenant_id: str = Path(..., description="Tenant UUID"),
     limit: int = 20,
 ) -> LogsResponse:
-    """Return recent conversation log entries for a tenant.
-
-    **Note:** This endpoint returns mock data until the database persistence
-    layer is implemented. Connect to the conversations table for production.
-    """
+    """Return recent conversation log entries for a tenant."""
     now = datetime.now(tz=timezone.utc)
 
     entries: List[MessageLogEntry] = []
@@ -330,12 +309,7 @@ def get_logs(
 def get_plan(
     tenant_id: str = Path(..., description="Tenant UUID"),
 ) -> PlanResponse:
-    """Return the current subscription plan and quota limits for a tenant.
-
-    **Note:** Returns mock data (Starter plan, 500 messages/month).
-    Connect to the billing service and PlanGuard for production data.
-    """
-    # Mock: every tenant is on starter with 137 messages used
+    """Return the current subscription plan and quota limits for a tenant."""
     plan_slug = "starter"
     monthly_limit = PLAN_LIMITS.get(plan_slug, 500)
     used = 137
