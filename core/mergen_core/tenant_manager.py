@@ -3,37 +3,7 @@ mergen_core.tenant_manager
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Domain-agnostic multi-tenant manager for the Mergen Platform.
-
-Responsibilities
-----------------
-* CRUD operations for Tenant records (PostgreSQL-backed in production).
-* Webhook routing key resolution: resolves a ``whatsapp_phone_number_id``
-  to the matching Tenant so the webhook firewall can dispatch inbound
-  messages to the correct tenant context.
-
-Storage Architecture
---------------------
-Production deployments use a PostgreSQL ``tenants`` table:
-
-    CREATE TABLE tenants (
-        tenant_id               UUID PRIMARY KEY,
-        business_name           TEXT        NOT NULL,
-        sector                  TEXT        NOT NULL,
-        plan                    TEXT        NOT NULL DEFAULT 'starter',
-        whatsapp_phone_number_id TEXT       UNIQUE,
-        created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    -- Lookup index for webhook routing (hot path, must be fast)
-    CREATE INDEX idx_tenants_wa_phone ON tenants (whatsapp_phone_number_id);
-
-This module uses an **in-memory dict** to mock the DB adapter so the
-class can be imported and tested without a real database.  To plug in
-a real adapter, subclass ``TenantManager`` and override the private
-``_db_*`` methods — the public API surface does not change.
-
-Pattern inspired by (but NOT imported from):
-    reference/webhooks/tenant_resolution.py
+SQLAlchemy ORM version with full SQLite and PostgreSQL database support.
 
 Author: Mergen Platform -- Core Team
 """
@@ -43,8 +13,11 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from datetime import datetime
-from typing import Dict, Optional
+from datetime import datetime, timezone
+from typing import Dict, Optional, List
+
+from mergen_core.database import SessionLocal
+from mergen_core.db_models import DBTenant
 
 # ---------------------------------------------------------------------------
 # Import shared domain models (zero-dependency dataclasses)
@@ -76,77 +49,54 @@ class TenantAlreadyExistsError(ValueError):
 # ---------------------------------------------------------------------------
 
 class TenantManager:
-    """Multi-tenant CRUD manager with webhook-routing key resolution.
+    """Multi-tenant CRUD manager backed by SQLAlchemy database session.
 
-    Constructor Args
-    ---------------
-    db_adapter:
-        Optional production database adapter (e.g. asyncpg connection pool).
-        When ``None`` (default) the manager falls back to an in-memory dict
-        that mimics the SQL layer for local development and unit tests.
-
-    Example::
-        manager = TenantManager()
-        manager.create_tenant(tenant)
-        found = manager.get_tenant_by_whatsapp_id("109876543210123")
+    Resolves tenant_id by phone number and manages plan and settings overrides.
     """
 
     # Subscription plan hierarchy — also defined in plan_guard.py.
-    # Keep in sync if plans change.
     VALID_PLANS = frozenset({"free", "starter", "business", "premium", "enterprise"})
 
     def __init__(self, db_adapter=None) -> None:
-        self._db = db_adapter  # Production: asyncpg pool / SQLAlchemy session
-
-        # ── In-memory mock store (dev / test) ────────────────────────────
-        # Structure mirrors two DB indexes:
-        #   _store_by_id        → { tenant_id: Tenant }        (PK lookup)
-        #   _store_by_wa_phone  → { phone_number_id: tenant_id }  (FK index)
-        self._store_by_id: Dict[str, Tenant] = {}
-        self._store_by_wa_phone: Dict[str, str] = {}
-
-        logger.info(
-            "TenantManager: initialised (%s backend).",
-            "in-memory mock" if db_adapter is None else "database",
-        )
+        self._db = db_adapter
+        logger.info("TenantManager: initialised with SQLAlchemy ORM database backend.")
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def create_tenant(self, tenant: Tenant) -> None:
-        """Persist a new Tenant record.
-
-        Args:
-            tenant: Fully-populated ``Tenant`` dataclass.
-
-        Raises:
-            TenantAlreadyExistsError: If ``tenant_id`` already exists.
-            ValueError: If ``tenant.plan`` is not a recognised plan slug.
-
-        SQL equivalent::
-            INSERT INTO tenants
-                (tenant_id, business_name, sector, plan,
-                 whatsapp_phone_number_id, created_at)
-            VALUES
-                ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (tenant_id) DO NOTHING;
-        """
+        """Persist a new Tenant record in the database."""
         if tenant.plan not in self.VALID_PLANS:
             raise ValueError(
                 f"TenantManager.create_tenant: unknown plan '{tenant.plan}'. "
                 f"Valid plans: {sorted(self.VALID_PLANS)}"
             )
 
-        if tenant.tenant_id in self._store_by_id:
-            raise TenantAlreadyExistsError(
-                f"TenantManager.create_tenant: tenant '{tenant.tenant_id}' already exists."
-            )
+        with SessionLocal() as session:
+            existing = session.query(DBTenant).filter(DBTenant.id == tenant.tenant_id).first()
+            if existing:
+                raise TenantAlreadyExistsError(
+                    f"TenantManager.create_tenant: tenant '{tenant.tenant_id}' already exists."
+                )
 
-        # ── Mock DB write ────────────────────────────────────────────────
-        self._store_by_id[tenant.tenant_id] = tenant
-        if tenant.whatsapp_phone_number_id:
-            self._store_by_wa_phone[tenant.whatsapp_phone_number_id] = tenant.tenant_id
+            db_tenant = DBTenant(
+                id=tenant.tenant_id,
+                business_name=tenant.business_name,
+                sector=tenant.sector,
+                plan=tenant.plan,
+                whatsapp_phone_number_id=tenant.whatsapp_phone_number_id or None,
+                created_at=tenant.created_at or datetime.now(timezone.utc),
+                bot_active=True,
+                system_prompt_override=None
+            )
+            session.add(db_tenant)
+            try:
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                logger.exception("Failed to commit tenant creation.")
+                raise e
 
         logger.info(
             "TenantManager: created tenant id=%s name='%s' plan=%s.",
@@ -156,126 +106,132 @@ class TenantManager:
         )
 
     def get_tenant_by_id(self, tenant_id: str) -> Tenant:
-        """Fetch a Tenant by its primary key UUID.
+        """Fetch a Tenant by its primary key UUID."""
+        with SessionLocal() as session:
+            db_tenant = session.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+            if db_tenant is None:
+                raise TenantNotFoundError(
+                    f"TenantManager.get_tenant_by_id: no tenant with id='{tenant_id}'."
+                )
+            return _db_to_domain(db_tenant)
 
-        Args:
-            tenant_id: UUID string.
-
-        Returns:
-            The matching ``Tenant`` dataclass.
-
-        Raises:
-            TenantNotFoundError: If no tenant with that ID exists.
-
-        SQL equivalent::
-            SELECT * FROM tenants WHERE tenant_id = $1 LIMIT 1;
-        """
-        tenant = self._store_by_id.get(tenant_id)
-        if tenant is None:
-            raise TenantNotFoundError(
-                f"TenantManager.get_tenant_by_id: no tenant with id='{tenant_id}'."
-            )
-        logger.debug("TenantManager: fetched tenant by id=%s.", tenant_id)
-        return tenant
+    def get_db_tenant_by_id(self, tenant_id: str) -> DBTenant:
+        """Fetch the raw DBTenant database model to read extra attributes (bot_active, system_prompt_override)."""
+        with SessionLocal() as session:
+            db_tenant = session.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+            if db_tenant is None:
+                raise TenantNotFoundError(
+                    f"TenantManager.get_db_tenant_by_id: no tenant with id='{tenant_id}'."
+                )
+            # Expunge model from session so it can be read outside transaction block
+            session.expunge(db_tenant)
+            return db_tenant
 
     def get_tenant_by_whatsapp_id(self, phone_number_id: str) -> Tenant:
-        """Resolve a WhatsApp ``phone_number_id`` to a Tenant record.
-
-        This is the **hot path** called on every inbound webhook request.
-        In production, the query hits the ``idx_tenants_wa_phone`` index:
-
-        SQL equivalent::
-            SELECT * FROM tenants
-            WHERE whatsapp_phone_number_id = $1
-            LIMIT 1;
-
-        Args:
-            phone_number_id: Meta Cloud API ``phone_number_id`` value from
-                             the webhook payload's ``value.metadata`` block.
-
-        Returns:
-            The matching ``Tenant`` dataclass.
-
-        Raises:
-            TenantNotFoundError: If no tenant is registered for that
-                                 phone_number_id. This is the firewall
-                                 rejection trigger — callers should respond
-                                 with HTTP 403 to Meta.
-        """
-        tenant_id = self._store_by_wa_phone.get(phone_number_id)
-        if tenant_id is None:
-            raise TenantNotFoundError(
-                f"TenantManager.get_tenant_by_whatsapp_id: "
-                f"no tenant registered for phone_number_id='{phone_number_id}'."
+        """Resolve a WhatsApp phone_number_id to a Tenant record."""
+        with SessionLocal() as session:
+            db_tenant = (
+                session.query(DBTenant)
+                .filter(DBTenant.whatsapp_phone_number_id == phone_number_id)
+                .first()
             )
-        return self.get_tenant_by_id(tenant_id)
+            if db_tenant is None:
+                raise TenantNotFoundError(
+                    f"TenantManager.get_tenant_by_whatsapp_id: "
+                    f"no tenant registered for phone_number_id='{phone_number_id}'."
+                )
+            return _db_to_domain(db_tenant)
+
+    def update_tenant(
+        self,
+        tenant_id: str,
+        bot_active: bool,
+        system_prompt_override: Optional[str]
+    ) -> Tenant:
+        """Update a tenant's active bot status and custom prompt override."""
+        with SessionLocal() as session:
+            db_tenant = session.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+            if db_tenant is None:
+                raise TenantNotFoundError(
+                    f"TenantManager.update_tenant: tenant '{tenant_id}' not found."
+                )
+            db_tenant.bot_active = bot_active
+            db_tenant.system_prompt_override = system_prompt_override
+            try:
+                session.commit()
+                session.refresh(db_tenant)
+                return _db_to_domain(db_tenant)
+            except Exception as e:
+                session.rollback()
+                logger.exception("Failed to update tenant configuration.")
+                raise e
 
     def update_tenant_plan(self, tenant_id: str, new_plan: str) -> Tenant:
-        """Upgrade or downgrade a tenant's subscription plan.
-
-        Args:
-            tenant_id: UUID of the tenant to update.
-            new_plan:  Target plan slug (must be in VALID_PLANS).
-
-        Returns:
-            Updated ``Tenant`` dataclass.
-
-        Raises:
-            TenantNotFoundError: If tenant does not exist.
-            ValueError: If ``new_plan`` is not a recognised plan slug.
-
-        SQL equivalent::
-            UPDATE tenants SET plan = $2 WHERE tenant_id = $1
-            RETURNING *;
-        """
+        """Upgrade or downgrade a tenant's subscription plan."""
         if new_plan not in self.VALID_PLANS:
             raise ValueError(
                 f"TenantManager.update_tenant_plan: unknown plan '{new_plan}'."
             )
-        existing = self.get_tenant_by_id(tenant_id)
 
-        # Dataclasses are not frozen, so we replace the instance
-        from dataclasses import replace
-        updated = replace(existing, plan=new_plan)
-        self._store_by_id[tenant_id] = updated
-
-        logger.info(
-            "TenantManager: updated tenant id=%s plan %s → %s.",
-            tenant_id,
-            existing.plan,
-            new_plan,
-        )
-        return updated
+        with SessionLocal() as session:
+            db_tenant = session.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+            if db_tenant is None:
+                raise TenantNotFoundError(
+                    f"TenantManager.update_tenant_plan: tenant '{tenant_id}' not found."
+                )
+            db_tenant.plan = new_plan
+            try:
+                session.commit()
+                session.refresh(db_tenant)
+                return _db_to_domain(db_tenant)
+            except Exception as e:
+                session.rollback()
+                logger.exception("Failed to update tenant plan.")
+                raise e
 
     def delete_tenant(self, tenant_id: str) -> None:
-        """Remove a Tenant record (hard delete).
-
-        SQL equivalent::
-            DELETE FROM tenants WHERE tenant_id = $1;
-
-        Args:
-            tenant_id: UUID of the tenant to delete.
-
-        Raises:
-            TenantNotFoundError: If tenant does not exist.
-        """
-        tenant = self.get_tenant_by_id(tenant_id)
-        del self._store_by_id[tenant_id]
-        if tenant.whatsapp_phone_number_id in self._store_by_wa_phone:
-            del self._store_by_wa_phone[tenant.whatsapp_phone_number_id]
+        """Remove a Tenant record (hard delete)."""
+        with SessionLocal() as session:
+            db_tenant = session.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+            if db_tenant is None:
+                raise TenantNotFoundError(
+                    f"TenantManager.delete_tenant: tenant '{tenant_id}' not found."
+                )
+            session.delete(db_tenant)
+            try:
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                logger.exception("Failed to delete tenant.")
+                raise e
         logger.info("TenantManager: deleted tenant id=%s.", tenant_id)
 
-    def list_tenants(self) -> list:
-        """Return all tenants (dev / admin use only — no pagination).
-
-        SQL equivalent::
-            SELECT * FROM tenants ORDER BY created_at DESC;
-        """
-        return list(self._store_by_id.values())
+    def list_tenants(self) -> List[Tenant]:
+        """Return all tenants."""
+        with SessionLocal() as session:
+            db_tenants = session.query(DBTenant).order_by(DBTenant.created_at.desc()).all()
+            return [_db_to_domain(t) for t in db_tenants]
 
     def count(self) -> int:
         """Return total number of registered tenants."""
-        return len(self._store_by_id)
+        with SessionLocal() as session:
+            return session.query(DBTenant).count()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _db_to_domain(db_tenant: DBTenant) -> Tenant:
+    """Helper to map a DBTenant SQLAlchemy record to a domain Tenant dataclass."""
+    return Tenant(
+        tenant_id=db_tenant.id,
+        business_name=db_tenant.business_name,
+        sector=db_tenant.sector,
+        plan=db_tenant.plan,
+        whatsapp_phone_number_id=db_tenant.whatsapp_phone_number_id or "",
+        created_at=db_tenant.created_at,
+    )
 
 
 # ---------------------------------------------------------------------------

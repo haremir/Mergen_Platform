@@ -60,6 +60,8 @@ from panel.schemas import (  # noqa: E402
 from mergen_product_desk.onboarding_orchestrator import DeskOnboardingService  # noqa: E402
 from mergen_pkg_whatsapp.client import WhatsAppClient, WhatsAppAPIError  # noqa: E402
 from mergen_core.plan_guard import PLAN_LIMITS  # noqa: E402
+from mergen_core.database import engine, Base  # noqa: E402
+from mergen_core.tenant_manager import get_tenant_manager, TenantNotFoundError  # noqa: E402
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -81,6 +83,15 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# ---------------------------------------------------------------------------
+# Database Initialization
+# ---------------------------------------------------------------------------
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables initialized successfully.")
+except Exception:
+    logger.exception("Failed to initialize database tables.")
 
 # ---------------------------------------------------------------------------
 # CORS — allow Next.js dev server + any additional origins from env
@@ -228,16 +239,26 @@ def configure_tenant_settings(
     body: DashboardControlRequest,
     tenant_id: str = Path(..., description="UUID of the target tenant"),
 ) -> DashboardControlResponse:
-    """Mock endpoint to update tenant's active bot status and custom system prompts.
-
-    In production, this updates the database entry for the tenant.
-    """
+    """Update tenant's active bot status and custom system prompts in the database."""
     logger.info(
         "POST /api/tenant/%s/settings: bot_active=%s prompt_override=%s",
         tenant_id,
         body.bot_active,
         body.system_prompt_override is not None,
     )
+    
+    manager = _override_tenant_mgr or get_tenant_manager()
+    try:
+        manager.update_tenant(
+            tenant_id=tenant_id,
+            bot_active=body.bot_active,
+            system_prompt_override=body.system_prompt_override,
+        )
+    except TenantNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tenant '{tenant_id}' not found."
+        )
     
     status_msg = f"Bot status updated to {'active' if body.bot_active else 'inactive'}."
     if body.system_prompt_override:

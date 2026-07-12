@@ -19,3 +19,8 @@ ENV/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Databases
+*.db
+mergen_local.db
+

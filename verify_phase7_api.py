@@ -133,6 +133,7 @@ resp = client.post("/api/onboarding", json=VALID_PAYLOAD)
 print(f"       HTTP Status: {resp.status_code}")
 assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
 data = resp.json()
+VALID_TENANT_ID = data["tenant_id"]
 
 print()
 print("       Response JSON:")
@@ -276,7 +277,7 @@ settings_payload = {
     "bot_active": False,
     "system_prompt_override": "Yeni deneme sistem promptu"
 }
-resp = client.post(f"/api/tenant/{FAKE_TENANT}/settings", json=settings_payload)
+resp = client.post(f"/api/tenant/{VALID_TENANT_ID}/settings", json=settings_payload)
 assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
 settings_data = resp.json()
 assert settings_data["status"] == "success"
