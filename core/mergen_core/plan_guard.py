@@ -49,6 +49,7 @@ Author: Mergen Platform -- Core Team
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
@@ -105,6 +106,7 @@ class PlanGuard:
 
     def __init__(self, redis_client=None) -> None:
         self._redis = redis_client  # Production: redis.Redis / aioredis connection
+        self._lock = threading.Lock()
 
         # ── In-memory mock stores (dev / test) ───────────────────────────
         # Usage counters: { "tenant_usage:{tenant_id}:{YYYY_MM}": int }
@@ -160,28 +162,30 @@ class PlanGuard:
             limit = PLAN_LIMITS["free"]
 
         usage_key = self._usage_key(tenant_id)
-        current = self._usage.get(usage_key, 0)
+        
+        with self._lock:
+            current = self._usage.get(usage_key, 0)
 
-        if current >= limit:
-            logger.warning(
-                "PlanGuard: QUOTA EXCEEDED tenant=%s plan=%s usage=%d limit=%d.",
+            if current >= limit:
+                logger.warning(
+                    "PlanGuard: QUOTA EXCEEDED tenant=%s plan=%s usage=%d limit=%d.",
+                    tenant_id,
+                    plan,
+                    current,
+                    limit,
+                )
+                return False
+
+            # ── Mock Redis INCR ──────────────────────────────────────────────
+            self._usage[usage_key] = current + 1
+            logger.debug(
+                "PlanGuard: tenant=%s plan=%s usage=%d/%d OK.",
                 tenant_id,
                 plan,
-                current,
+                current + 1,
                 limit,
             )
-            return False
-
-        # ── Mock Redis INCR ──────────────────────────────────────────────
-        self._usage[usage_key] = current + 1
-        logger.debug(
-            "PlanGuard: tenant=%s plan=%s usage=%d/%d OK.",
-            tenant_id,
-            plan,
-            current + 1,
-            limit,
-        )
-        return True
+            return True
 
     def get_usage(self, tenant_id: str) -> int:
         """Return the current monthly message count for a tenant.
