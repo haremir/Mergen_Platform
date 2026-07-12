@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 # Path setup — make shared/ and core/ importable from repo root
 # ---------------------------------------------------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.join(_ROOT, "shared"))
 sys.path.insert(0, os.path.join(_ROOT, "core"))
 

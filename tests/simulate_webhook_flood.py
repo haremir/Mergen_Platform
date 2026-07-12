@@ -27,7 +27,7 @@ from typing import List, Dict
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 for _p in (
     os.path.join(_ROOT, "shared"),
     os.path.join(_ROOT, "core"),
