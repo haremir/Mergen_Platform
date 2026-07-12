@@ -63,14 +63,14 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-12 px-6 sm:px-8">
+    <div className="max-w-4xl mx-auto py-12 px-6">
       {/* Title Header */}
       <div className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
           <Sparkles className="w-8 h-8 text-blue-500 animate-pulse" />
           Yeni Müşteri Kaydı
         </h1>
-        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+        <p className="text-slate-400 mt-2 text-sm leading-relaxed">
           Mergen sistemine yeni bir işletme ekleyin. Buraya girdiğiniz bilgiler, yapay zekanın o işletme hakkında her şeyi öğrenmesini (RAG) sağlayacaktır.
         </p>
       </div>
@@ -79,8 +79,8 @@ export default function Onboarding() {
         <form onSubmit={handleSubmit} className="space-y-8">
           
           {/* Card 1: Business Identity */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 shadow-xl space-y-6">
-            <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Building2 className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği (WhatsApp Bağlantısı)</h2>
             </div>
@@ -88,7 +88,7 @@ export default function Onboarding() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Business Name */}
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   İşletme Adı *
                 </label>
                 <input
@@ -98,13 +98,13 @@ export default function Onboarding() {
                   placeholder="Örn: Acme Kuaför Salonu"
                   value={formData.business_name}
                   onChange={handleChange}
-                  className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* WhatsApp Phone Number */}
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   WhatsApp Numarası *
                 </label>
                 <input
@@ -114,15 +114,15 @@ export default function Onboarding() {
                   placeholder="Örn: +905551234567"
                   value={formData.phone_number}
                   onChange={handleChange}
-                  className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
           </div>
 
           {/* Card 2: Knowledge Ingestion */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 shadow-xl space-y-6">
-            <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <FileText className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">Yapay Zeka Bilgi Bankası (RAG Context)</h2>
             </div>
@@ -130,7 +130,7 @@ export default function Onboarding() {
             <div className="space-y-6">
               {/* Business Hours */}
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Çalışma Saatleri *
                 </label>
                 <input
@@ -140,13 +140,13 @@ export default function Onboarding() {
                   placeholder="Örn: Hafta içi 09:00-18:00, Cumartesi 10:00-15:00. Yapay zeka randevuları buna göre ayarlar."
                   value={formData.business_hours}
                   onChange={handleChange}
-                  className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Location */}
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Açık Adres ve Konum Tarifi *
                 </label>
                 <input
@@ -156,13 +156,13 @@ export default function Onboarding() {
                   placeholder="Örn: Kadıköy Boğa heykelinden sağa dönünce 2. sokak. Müşterilere yol tarif ederken kullanılır."
                   value={formData.location}
                   onChange={handleChange}
-                  className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Cancellation Policy */}
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   İptal ve İade Politikası *
                 </label>
                 <textarea
@@ -172,13 +172,13 @@ export default function Onboarding() {
                   placeholder="Örn: Randevuya 24 saat kaladan sonra iptal yapılamaz. Kapora yanar."
                   value={formData.cancellation_policy}
                   onChange={handleChange}
-                  className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                 />
               </div>
 
               {/* Contact Info */}
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   İletişim ve Destek Bilgileri *
                 </label>
                 <input
@@ -188,14 +188,14 @@ export default function Onboarding() {
                   placeholder="Örn: Acil durumlarda ahmet@kuaför.com veya 0212 555 55 55 üzerinden bize ulaşın."
                   value={formData.contact_info}
                   onChange={handleChange}
-                  className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Additional Configurations */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                     Sunulan Hizmetler (Opsiyonel)
                   </label>
                   <input
@@ -204,12 +204,12 @@ export default function Onboarding() {
                     placeholder="Örn: Saç kesimi, sakal tıraşı, cilt bakımı."
                     value={formData.services}
                     onChange={handleChange}
-                    className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                     Fiyatlandırma Listesi (Opsiyonel)
                   </label>
                   <input
@@ -218,19 +218,19 @@ export default function Onboarding() {
                     placeholder="Örn: Saç Kesimi: 300 TL, Sakal: 150 TL. Fiyat soranlara bu liste verilir."
                     value={formData.pricing}
                     onChange={handleChange}
-                    className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                     Aylık Paket (Limit)
                   </label>
                   <select
                     name="plan"
                     value={formData.plan}
                     onChange={handleChange}
-                    className="w-full bg-gray-950 border border-gray-700 text-gray-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
                   >
                     <option value="starter">Başlangıç Paketi (500 Mesaj)</option>
                     <option value="business">İşletme Paketi (2000 Mesaj)</option>
@@ -266,7 +266,7 @@ export default function Onboarding() {
         </form>
       ) : (
         /* Success State card view */
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 sm:p-10 shadow-xl text-center space-y-6">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 sm:p-10 shadow-xl text-center space-y-6">
           {result.status === 'pending_verification' ? (
             <div className="w-16 h-16 bg-emerald-500/15 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
               <CheckCircle2 className="w-9 h-9" />
@@ -283,38 +283,38 @@ export default function Onboarding() {
               : 'Onboarding Başarısız Oldu'}
           </h2>
 
-          <p className="text-gray-400 text-sm max-w-md mx-auto leading-relaxed">
+          <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
             {result.status === 'pending_verification'
               ? 'Müşteri bilgileri doğrulandı ve RAG veritabanına aktarıldı. WhatsApp Business numara doğrulaması bekleniyor.'
               : 'Müşteri kaydı tamamlanamadı. Lütfen aşağıdaki hata detaylarını inceleyin.'}
           </p>
 
-          <div className="bg-gray-950 border border-gray-800 rounded-xl p-6 text-left space-y-5 max-w-xl mx-auto font-sans text-sm">
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 text-left space-y-5 max-w-xl mx-auto font-sans text-sm">
             <div>
-              <span className="text-[10px] font-semibold text-gray-500 block uppercase tracking-wider mb-1">Kiracı (Tenant) Kimliği</span>
+              <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">Kiracı (Tenant) Kimliği</span>
               <span className="font-mono text-white block select-all break-all">{result.tenant_id}</span>
             </div>
 
             <div>
-              <span className="text-[10px] font-semibold text-gray-500 block uppercase tracking-wider mb-1">WhatsApp Telefon No ID</span>
+              <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">WhatsApp Telefon No ID</span>
               <span className="font-mono text-blue-400 block break-all">
                 {result.phone_number_id || 'Kayıt Yapılmadı (Simülasyon Modu)'}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 pt-2 border-t border-gray-900">
+            <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-900">
               <div>
-                <span className="text-[10px] font-semibold text-gray-500 block uppercase tracking-wider mb-1">Bilgi Bankası</span>
+                <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">Bilgi Bankası</span>
                 <span className="text-white font-medium block">{result.knowledge_fields_ingested} bilgi kartı eklendi</span>
               </div>
               <div>
-                <span className="text-[10px] font-semibold text-gray-500 block uppercase tracking-wider mb-1">Aktif Karakter (Persona)</span>
+                <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">Aktif Karakter (Persona)</span>
                 <span className="text-white font-medium block">{result.persona || 'Bilinmiyor'}</span>
               </div>
             </div>
 
             {result.error && (
-              <div className="border-t border-gray-900 pt-4">
+              <div className="border-t border-slate-900 pt-4">
                 <span className="text-[10px] font-semibold text-red-500 block uppercase tracking-wider mb-1">Karşılaşılan Hata</span>
                 <span className="text-red-400 font-medium block leading-relaxed">{result.error}</span>
               </div>
@@ -332,7 +332,7 @@ export default function Onboarding() {
               onClick={() => {
                 window.location.hash = `#/dashboard?tenant_id=${result.tenant_id}`;
               }}
-              className="bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 font-semibold py-3 px-6 rounded-lg transition-all cursor-pointer text-sm"
+              className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-semibold py-3 px-6 rounded-lg transition-all cursor-pointer text-sm"
             >
               Kontrol Paneline Git
             </button>
