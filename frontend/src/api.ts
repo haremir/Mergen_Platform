@@ -15,11 +15,12 @@ const api = axios.create({
 export interface OnboardingPayload {
   business_name: string;
   phone_number: string;
-  business_hours: string;
+  business_hours: Record<string, string>; // e.g. { monday: "09:00-18:00" }
   location: string;
   cancellation_policy: string;
   contact_info: string;
-  services?: string;
+  services: { name: string; price: string; description: string }[];
+  faqs?: { question: string; answer: string }[];
   pricing?: string;
   plan?: string;
 }
@@ -32,6 +33,19 @@ export interface OnboardingResult {
   persona: string | null;
   error: string | null;
   missing_fields: string[] | null;
+}
+
+export interface DashboardControlPayload {
+  bot_active: boolean;
+  system_prompt_override: string;
+}
+
+export interface DashboardControlResult {
+  status: string;
+  message: string;
+  tenant_id: string;
+  bot_active: boolean;
+  system_prompt_override: string | null;
 }
 
 export interface LogEntry {
@@ -78,6 +92,15 @@ export interface HealthResult {
 /** POST /api/onboarding — register a new Desk client */
 export async function submitOnboarding(data: OnboardingPayload): Promise<OnboardingResult> {
   const res = await api.post<OnboardingResult>('/onboarding', data);
+  return res.data;
+}
+
+/** POST /api/tenant/:tenantId/settings — update active bot status and LLM overrides */
+export async function updateTenantSettings(
+  tenantId: string,
+  data: DashboardControlPayload
+): Promise<DashboardControlResult> {
+  const res = await api.post<DashboardControlResult>(`/tenant/${tenantId}/settings`, data);
   return res.data;
 }
 

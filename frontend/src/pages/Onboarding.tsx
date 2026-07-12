@@ -2,30 +2,82 @@ import { useState } from 'react';
 import { submitOnboarding } from '../api';
 import type { OnboardingPayload, OnboardingResult } from '../api';
 import { 
-  Building2, Phone, Clock, MapPin, FileText, 
-  Info, Sparkles, CheckCircle2, AlertCircle, RefreshCw 
+  Building2, FileText, Sparkles, CheckCircle2, AlertCircle, RefreshCw, Plus, Trash2, HelpCircle 
 } from 'lucide-react';
 
+const DAYS = [
+  { key: 'monday', label: 'Pazartesi' },
+  { key: 'tuesday', label: 'Salı' },
+  { key: 'wednesday', label: 'Çarşamba' },
+  { key: 'thursday', label: 'Perşembe' },
+  { key: 'friday', label: 'Cuma' },
+  { key: 'saturday', label: 'Cumartesi' },
+  { key: 'sunday', label: 'Pazar' },
+];
+
 export default function Onboarding() {
-  const [formData, setFormData] = useState<OnboardingPayload>({
-    business_name: '',
-    phone_number: '',
-    business_hours: '',
-    location: '',
-    cancellation_policy: '',
-    contact_info: '',
-    services: '',
-    pricing: '',
-    plan: 'starter'
+  const [businessName, setBusinessName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  
+  // Structured Business Hours dictionary
+  const [businessHours, setBusinessHours] = useState<Record<string, string>>({
+    monday: '09:00-18:00',
+    tuesday: '09:00-18:00',
+    wednesday: '09:00-18:00',
+    thursday: '09:00-18:00',
+    friday: '09:00-18:00',
+    saturday: '09:00-15:00',
+    sunday: 'Kapalı',
   });
+
+  const [location, setLocation] = useState('');
+  const [cancellationPolicy, setCancellationPolicy] = useState('');
+  const [contactInfo, setContactInfo] = useState('');
+  const [pricing, setPricing] = useState('');
+  const [plan, setPlan] = useState('starter');
+
+  // Dynamic lists for FAQs and Services
+  const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([
+    { question: 'Randevu nasıl alabilirim?', answer: 'WhatsApp hattımız üzerinden almak istediğiniz hizmeti yazarak kolayca randevu alabilirsiniz.' }
+  ]);
+
+  const [services, setServices] = useState<{ name: string; price: string; description: string }[]>([
+    { name: 'Saç Kesimi', price: '300 TL', description: 'Klasik saç kesimi ve yıkama dahil.' }
+  ]);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<OnboardingResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  // Business Hours change handler
+  const handleHourChange = (dayKey: string, val: string) => {
+    setBusinessHours(prev => ({ ...prev, [dayKey]: val }));
+  };
+
+  // FAQ handlers
+  const handleAddFaq = () => {
+    setFaqs(prev => [...prev, { question: '', answer: '' }]);
+  };
+
+  const handleRemoveFaq = (index: number) => {
+    setFaqs(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleFaqChange = (index: number, field: 'question' | 'answer', val: string) => {
+    setFaqs(prev => prev.map((item, i) => i === index ? { ...item, [field]: val } : item));
+  };
+
+  // Services handlers
+  const handleAddService = () => {
+    setServices(prev => [...prev, { name: '', price: '', description: '' }]);
+  };
+
+  const handleRemoveService = (index: number) => {
+    setServices(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleServiceChange = (index: number, field: 'name' | 'price' | 'description', val: string) => {
+    setServices(prev => prev.map((item, i) => i === index ? { ...item, [field]: val } : item));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,11 +86,34 @@ export default function Onboarding() {
     setResult(null);
     setErrorMsg(null);
 
+    // Filter out blank items before submitting
+    const cleanedFaqs = faqs.filter(f => f.question.trim() !== '' && f.answer.trim() !== '');
+    const cleanedServices = services.filter(s => s.name.trim() !== '');
+
+    if (cleanedServices.length === 0) {
+      setErrorMsg('Lütfen en az bir adet hizmet ekleyiniz.');
+      setLoading(false);
+      return;
+    }
+
+    const payload: OnboardingPayload = {
+      business_name: businessName,
+      phone_number: phoneNumber,
+      business_hours: businessHours,
+      location: location,
+      cancellation_policy: cancellationPolicy,
+      contact_info: contactInfo,
+      services: cleanedServices,
+      faqs: cleanedFaqs,
+      pricing: pricing,
+      plan: plan
+    };
+
     try {
-      const response = await submitOnboarding(formData);
+      const response = await submitOnboarding(payload);
       setResult(response);
       if (response.status !== 'pending_verification') {
-        setErrorMsg(response.error || `Onboarding finished with status: ${response.status}`);
+        setErrorMsg(response.error || `Kayıt işlemi şu durumla bitti: ${response.status}`);
       }
     } catch (err: any) {
       console.error(err);
@@ -46,12 +121,12 @@ export default function Onboarding() {
         const detail = err.response.data.detail;
         if (Array.isArray(detail)) {
           const missing = detail.map((d: any) => d.loc[d.loc.length - 1]).join(', ');
-          setErrorMsg(`Validation Error: Missing or invalid fields: ${missing}`);
+          setErrorMsg(`Doğrulama Hatası: Eksik veya hatalı alanlar: ${missing}`);
         } else {
           setErrorMsg(JSON.stringify(detail));
         }
       } else {
-        setErrorMsg(err.message || 'An error occurred during onboarding submit.');
+        setErrorMsg(err.message || 'Kayıt gönderimi sırasında beklenmeyen bir hata oluştu.');
       }
     } finally {
       setLoading(false);
@@ -64,276 +139,399 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      {/* Header */}
-      <div className="mb-8 text-center sm:text-left">
-        <h1 className="text-3xl font-extrabold text-white flex items-center justify-center sm:justify-start gap-3">
-          <Sparkles className="w-8 h-8 text-violet-500 animate-pulse" />
-          Desk Client Onboarding
+    <div className="max-w-4xl mx-auto py-12 px-6">
+      {/* Title Header */}
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+          <Sparkles className="w-8 h-8 text-blue-500 animate-pulse" />
+          Yeni Müşteri Kaydı
         </h1>
-        <p className="text-gray-400 mt-2">
-          Onboard a new tenant to the Mergen Platform by defining their front-desk identity and knowledge scope.
+        <p className="text-slate-400 mt-2 text-sm leading-relaxed">
+          Mergen sistemine yeni bir işletme ekleyin. Buraya girdiğiniz bilgiler, yapay zekanın o işletme hakkında her şeyi öğrenmesini (RAG) sağlayacaktır.
         </p>
       </div>
 
       {!result ? (
-        /* Form Card */
-        <div className="bg-[#12131a] border border-[#23242f] rounded-2xl p-6 sm:p-8 shadow-2xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <h2 className="text-xl font-semibold text-white border-b border-[#23242f] pb-3 mb-4">
-              Business Identity
-            </h2>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* Card 1: Business Identity */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+              <Building2 className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği (WhatsApp Bağlantısı)</h2>
+            </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Business Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-violet-400" />
-                  Business Name *
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  İşletme Adı *
                 </label>
                 <input
                   type="text"
-                  name="business_name"
                   required
-                  placeholder="e.g., Acme Barber Istanbul"
-                  value={formData.business_name}
-                  onChange={handleChange}
-                  className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="Örn: Acme Kuaför Salonu"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* WhatsApp Phone Number */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-violet-400" />
-                  WhatsApp Phone Number *
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  WhatsApp Numarası *
                 </label>
                 <input
                   type="text"
-                  name="phone_number"
                   required
-                  placeholder="e.g., +905551234567"
-                  value={formData.phone_number}
-                  onChange={handleChange}
-                  className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="Örn: +905551234567"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
+          </div>
 
-            <h2 className="text-xl font-semibold text-white border-b border-[#23242f] pb-3 mt-8 mb-4">
-              Knowledge Ingestion
-            </h2>
+          {/* Card 2: Business Hours (Structured) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+              <RefreshCw className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold tracking-tight text-white">Çalışma Saatleri (Haftalık Program) *</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {DAYS.map((day) => (
+                <div key={day.key} className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    {day.label}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Örn: 09:00-18:00 veya Kapalı"
+                    value={businessHours[day.key] || ''}
+                    onChange={(e) => handleHourChange(day.key, e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Card 3: Location and Policies */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+              <FileText className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold tracking-tight text-white">Temel Bilgiler ve Kurallar</h2>
+            </div>
 
             <div className="space-y-6">
-              {/* Business Hours */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-violet-400" />
-                  Business Hours *
-                </label>
-                <input
-                  type="text"
-                  name="business_hours"
-                  required
-                  placeholder="e.g., Mon-Fri 09:00-19:00, Sat 10:00-17:00"
-                  value={formData.business_hours}
-                  onChange={handleChange}
-                  className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
-                />
-              </div>
-
               {/* Location */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-violet-400" />
-                  Location / Address *
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Açık Adres ve Konum Tarifi *
                 </label>
                 <input
                   type="text"
-                  name="location"
                   required
-                  placeholder="e.g., Kadikoy Mah. Ataturk Cad. No:12, Kadikoy/Istanbul"
-                  value={formData.location}
-                  onChange={handleChange}
-                  className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="Örn: Kadıköy Boğa heykelinden sağa dönünce 2. sokak. Müşterilere yol tarif ederken kullanılır."
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Cancellation Policy */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-violet-400" />
-                  Cancellation Policy *
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  İptal ve İade Politikası *
                 </label>
                 <textarea
-                  name="cancellation_policy"
                   required
-                  rows={2}
-                  placeholder="e.g., 24 hours advance notice required for cancellations."
-                  value={formData.cancellation_policy}
-                  onChange={handleChange}
-                  className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors resize-none"
+                  rows={3}
+                  placeholder="Örn: Randevuya 24 saat kaladan sonra iptal yapılamaz. Kapora yanar."
+                  value={cancellationPolicy}
+                  onChange={(e) => setCancellationPolicy(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                 />
               </div>
 
               {/* Contact Info */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-violet-400" />
-                  Contact Info *
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  İletişim ve Destek Bilgileri *
                 </label>
                 <input
                   type="text"
-                  name="contact_info"
                   required
-                  placeholder="e.g., reception@acme.com | +90 212 555 0000"
-                  value={formData.contact_info}
-                  onChange={handleChange}
-                  className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="Örn: Acil durumlarda ahmet@kuaför.com veya 0212 555 55 55 üzerinden bize ulaşın."
+                  value={contactInfo}
+                  onChange={(e) => setContactInfo(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Services Ingestion (Dynamic) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-850 pb-3">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-blue-500" />
+                <h2 className="text-lg font-semibold tracking-tight text-white">Sunulan Hizmetler Listesi *</h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddService}
+                className="flex items-center gap-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/40 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Yeni Hizmet Ekle
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {services.map((service, index) => (
+                <div key={index} className="flex gap-4 items-start bg-slate-950/40 border border-slate-850 p-4 rounded-xl relative group">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-grow">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Hizmet Adı *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Örn: Saç Kesimi"
+                        value={service.name}
+                        onChange={(e) => handleServiceChange(index, 'name', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Ücret / Fiyat</label>
+                      <input
+                        type="text"
+                        placeholder="Örn: 300 TL"
+                        value={service.price}
+                        onChange={(e) => handleServiceChange(index, 'price', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Açıklama (Bot Yanıtı İçin)</label>
+                      <input
+                        type="text"
+                        placeholder="Örn: Yıkama ve fön dahildir."
+                        value={service.description}
+                        onChange={(e) => handleServiceChange(index, 'description', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  {services.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveService(index)}
+                      className="mt-6 p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
+                      title="Hizmeti Sil"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Card 5: FAQs Ingestion (Dynamic) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-850 pb-3">
+              <div className="flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-blue-500" />
+                <h2 className="text-lg font-semibold tracking-tight text-white">Sıkça Sorulan Sorular (FAQs)</h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddFaq}
+                className="flex items-center gap-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/40 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Yeni Soru Ekle
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {faqs.map((faq, index) => (
+                <div key={index} className="flex gap-4 items-start bg-slate-950/40 border border-slate-850 p-4 rounded-xl relative group">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Müşterinin Sorabileceği Soru</label>
+                      <input
+                        type="text"
+                        placeholder="Örn: Otoparkınız var mı?"
+                        value={faq.question}
+                        onChange={(e) => handleFaqChange(index, 'question', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Yapay Zeka Tarafından Verilecek Cevap</label>
+                      <input
+                        type="text"
+                        placeholder="Örn: Evet, salonumuzun önünde ücretsiz müşteri otoparkımız mevcuttur."
+                        value={faq.answer}
+                        onChange={(e) => handleFaqChange(index, 'answer', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFaq(index)}
+                    className="mt-6 p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
+                    title="Soruyu Sil"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pricing Notes & Limits Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+              <Sparkles className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold tracking-tight text-white">Ek Ayarlar ve Abonelik Paketi</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Genel Fiyat Notları (Opsiyonel)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Örn: Tüm fiyatlara KDV dahildir. Kredi kartı geçerlidir."
+                  value={pricing}
+                  onChange={(e) => setPricing(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
-              {/* Services & Pricing & Plan Group */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Services (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="services"
-                    placeholder="e.g., Haircut, Beard trim"
-                    value={formData.services}
-                    onChange={handleChange}
-                    className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Pricing (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="pricing"
-                    placeholder="e.g., Haircut: 150 TL"
-                    value={formData.pricing}
-                    onChange={handleChange}
-                    className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Subscription Plan
-                  </label>
-                  <select
-                    name="plan"
-                    value={formData.plan}
-                    onChange={handleChange}
-                    className="w-full bg-[#181922] border border-[#2b2c3a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 transition-colors"
-                  >
-                    <option value="starter">Starter Plan</option>
-                    <option value="pro">Pro Plan</option>
-                    <option value="enterprise">Enterprise Plan</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Aylık Paket (Limit)
+                </label>
+                <select
+                  value={plan}
+                  onChange={(e) => setPlan(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                >
+                  <option value="starter">Başlangıç Paketi (500 Mesaj)</option>
+                  <option value="business">İşletme Paketi (2000 Mesaj)</option>
+                  <option value="premium">Premium (Sınırsız)</option>
+                </select>
               </div>
             </div>
+          </div>
 
-            {/* Error message */}
-            {errorMsg && (
-              <div className="bg-[#2a1215] border border-[#ef444450] text-[#ef4444] rounded-xl p-4 flex items-start gap-3 mt-6">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <span className="text-sm font-medium">{errorMsg}</span>
+          {/* Validation Alert */}
+          {errorMsg && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="text-sm font-medium">
+                <span className="font-semibold block">Kayıt Başarısız Oldu</span>
+                <span className="opacity-95 mt-1 block leading-relaxed">{errorMsg}</span>
               </div>
-            )}
-
-            {/* Submit Button */}
-            <div className="pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-violet-800 disabled:opacity-50 text-white font-semibold py-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {loading && <RefreshCw className="w-5 h-5 animate-spin" />}
-                {loading ? 'Onboarding Client...' : 'Register Client'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : (
-        /* Result Card */
-        <div className="bg-[#12131a] border border-[#23242f] rounded-2xl p-8 shadow-2xl text-center space-y-6">
-          {result.status === 'pending_verification' ? (
-            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-          ) : (
-            <div className="w-16 h-16 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-              <AlertCircle className="w-10 h-10" />
             </div>
           )}
 
-          <h2 className="text-2xl font-bold text-white">
+          {/* Action CTA */}
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 text-white font-bold py-4 rounded-lg shadow-lg hover:shadow-blue-600/10 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm uppercase tracking-wider"
+            >
+              {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              {loading ? 'Kiracı Kaydediliyor...' : 'Müşteriyi Kaydet ve Botu Başlat'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        /* Success State card view */
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 sm:p-10 shadow-xl text-center space-y-6">
+          {result.status === 'pending_verification' ? (
+            <div className="w-16 h-16 bg-emerald-500/15 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
+              <CheckCircle2 className="w-9 h-9" />
+            </div>
+          ) : (
+            <div className="w-16 h-16 bg-red-500/15 text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30">
+              <AlertCircle className="w-9 h-9" />
+            </div>
+          )}
+
+          <h2 className="text-2xl font-bold tracking-tight text-white">
             {result.status === 'pending_verification' 
-              ? 'Onboarding Successfully Initiated!' 
-              : 'Onboarding Failed'}
+              ? 'Müşteri Kaydı Başarıyla Tamamlandı!' 
+              : 'Onboarding Başarısız Oldu'}
           </h2>
 
-          <p className="text-gray-400 max-w-md mx-auto">
+          <p className="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">
             {result.status === 'pending_verification'
-              ? 'Tenant has been registered, knowledge fields ingested, and WhatsApp client setup triggered.'
-              : 'Process stopped due to an error encountered during setup.'}
+              ? 'Müşteri bilgileri doğrulandı ve RAG veritabanına aktarıldı. WhatsApp Business numara doğrulaması bekleniyor.'
+              : 'Müşteri kaydı tamamlanamadı. Lütfen aşağıdaki hata detaylarını inceleyin.'}
           </p>
 
-          <div className="bg-[#181922] border border-[#2b2c3a] rounded-xl p-5 text-left space-y-4 max-w-xl mx-auto">
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 text-left space-y-5 max-w-xl mx-auto font-sans text-sm">
             <div>
-              <span className="text-xs font-semibold text-gray-500 block uppercase tracking-wider">Tenant ID</span>
-              <span className="text-sm font-mono text-white block select-all break-all">{result.tenant_id}</span>
+              <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">Kiracı (Tenant) Kimliği</span>
+              <span className="font-mono text-white block select-all break-all">{result.tenant_id}</span>
             </div>
 
             <div>
-              <span className="text-xs font-semibold text-gray-500 block uppercase tracking-wider">WhatsApp Phone ID</span>
-              <span className="text-sm font-mono text-emerald-400 block break-all">
-                {result.phone_number_id || 'Not generated (Error/Mock mode)'}
+              <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">WhatsApp Telefon No ID</span>
+              <span className="font-mono text-blue-400 block break-all">
+                {result.phone_number_id || 'Kayıt Yapılmadı (Simülasyon Modu)'}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-900">
               <div>
-                <span className="text-xs font-semibold text-gray-500 block uppercase tracking-wider">Knowledge Fields</span>
-                <span className="text-sm text-white font-medium block">{result.knowledge_fields_ingested} indexed</span>
+                <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">Bilgi Bankası</span>
+                <span className="text-white font-medium block">{result.knowledge_fields_ingested} bilgi kartı eklendi</span>
               </div>
               <div>
-                <span className="text-xs font-semibold text-gray-500 block uppercase tracking-wider">Persona</span>
-                <span className="text-sm text-white font-medium block">{result.persona || 'N/A'}</span>
+                <span className="text-[10px] font-semibold text-slate-500 block uppercase tracking-wider mb-1">Aktif Karakter (Persona)</span>
+                <span className="text-white font-medium block">{result.persona || 'Bilinmiyor'}</span>
               </div>
             </div>
 
             {result.error && (
-              <div className="border-t border-[#2b2c3a] pt-4">
-                <span className="text-xs font-semibold text-red-500 block uppercase tracking-wider">Error Details</span>
-                <span className="text-sm text-red-400 block">{result.error}</span>
+              <div className="border-t border-slate-900 pt-4">
+                <span className="text-[10px] font-semibold text-red-500 block uppercase tracking-wider mb-1">Karşılaşılan Hata</span>
+                <span className="text-red-400 font-medium block leading-relaxed">{result.error}</span>
               </div>
             )}
           </div>
 
-          <div className="pt-4 flex gap-4 justify-center">
+          <div className="pt-6 flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={handleReset}
-              className="bg-violet-600 hover:bg-violet-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors cursor-pointer"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all cursor-pointer text-sm"
             >
-              Onboard Another Client
+              Yeni Bir Müşteri Kaydet
             </button>
             <button
               onClick={() => {
-                // Navigate to dashboard with this tenantId
                 window.location.hash = `#/dashboard?tenant_id=${result.tenant_id}`;
               }}
-              className="bg-[#181922] hover:bg-[#202230] border border-[#2b2c3a] text-white font-semibold px-6 py-3 rounded-xl transition-colors cursor-pointer"
+              className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-semibold py-3 px-6 rounded-lg transition-all cursor-pointer text-sm"
             >
-              Go to Dashboard
+              Kontrol Paneline Git
             </button>
           </div>
         </div>
