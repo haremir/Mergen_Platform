@@ -1,30 +1,35 @@
 @import "tailwindcss";
 
-/* ── Design tokens ─────────────────────────────────────────── */
-:root {
-  --sidebar-w: 240px;
-  color-scheme: dark;
-}
-
-/* ── Base resets ───────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
   height: 100%;
-  font-family: 'Inter', system-ui, sans-serif;
-  background-color: #0a0b10;
-  color: #e2e8f0;
-  -webkit-font-smoothing: antialiased;
+  background-color: #020617; /* slate-950 */
+  color: #f8fafc; /* slate-50 */
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  box-sizing: border-box;
 }
 
-/* ── Scrollbar ─────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #0f111a; }
-::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+*, *::before, *::after {
+  box-sizing: inherit;
+}
 
-/* ── Focus ring ────────────────────────────────────────────── */
-:focus-visible {
-  outline: 2px solid #7c3aed;
-  outline-offset: 2px;
-  border-radius: 6px;
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f19; /* dark slate track */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b; /* slate-800 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155; /* slate-700 */
 }
