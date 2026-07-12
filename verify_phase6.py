@@ -221,7 +221,7 @@ mock_wa.add_phone_number.return_value = "META_PHONE_ID_999"
 
 # Mock RagEngine
 mock_rag = MagicMock()
-mock_rag.index_knowledge_fields.return_value = None
+mock_rag.ingest_fields.return_value = 10   # returns count of indexed fields
 
 # Mock TenantManager (use real one for create/get)
 from mergen_core.tenant_manager import TenantManager
@@ -268,8 +268,8 @@ mock_wa.add_phone_number.assert_called_once_with(
 print(f"{PASS} WhatsApp add_phone_number called with correct phone_number and display_name.")
 
 # Verify RAG was called
-mock_rag.index_knowledge_fields.assert_called_once()
-rag_call_fields = mock_rag.index_knowledge_fields.call_args[0][0]
+mock_rag.ingest_fields.assert_called_once()
+rag_call_fields = mock_rag.ingest_fields.call_args[0][1]   # positional arg 1 = fields
 assert len(rag_call_fields) == len(fields)
 print(f"{PASS} RAG index_knowledge_fields called with {len(rag_call_fields)} field(s).")
 
