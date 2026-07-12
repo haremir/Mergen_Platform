@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getLogs, getPlan } from '../api';
+import { getLogs, getPlan, updateTenantSettings } from '../api';
 import type { LogEntry, PlanResult } from '../api';
 import { 
   Terminal, ShieldCheck, Cpu, RefreshCw, 
-  MessageSquare, User, Bot, AlertTriangle 
+  MessageSquare, User, Bot, AlertTriangle, Settings, CheckCircle2 
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -17,6 +17,12 @@ export default function Dashboard() {
   const [plan, setPlan] = useState<PlanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Bot Control State
+  const [botActive, setBotActive] = useState(true);
+  const [promptOverride, setPromptOverride] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
 
   const fetchDashboardData = async (targetId: string) => {
     setLoading(true);
@@ -50,6 +56,28 @@ export default function Dashboard() {
     if (tenantId) fetchDashboardData(tenantId);
   };
 
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    setSettingsSuccess(null);
+    try {
+      const res = await updateTenantSettings(tenantId, {
+        bot_active: botActive,
+        system_prompt_override: promptOverride
+      });
+      setSettingsSuccess(res.message);
+      setTimeout(() => setSettingsSuccess(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(
+        err.response?.data?.detail || 
+        err.message || 
+        'Bot kontrol ayarları güncellenemedi.'
+      );
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto py-12 px-6 space-y-8">
       {/* Dashboard Top Header */}
@@ -60,7 +88,7 @@ export default function Dashboard() {
             Kontrol Paneli
           </h1>
           <p className="text-slate-400 mt-2 text-sm">
-            Gelen müşteri konuşma kayıtlarını izleyin ve aktif kota kullanım oranlarını yönetin.
+            Gelen müşteri konuşma kayıtlarını izleyin, aktif kota kullanım oranlarını yönetin ve yapay zeka davranışını anlık güncelleyin.
           </p>
         </div>
 
@@ -87,7 +115,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Alert Component */}
+      {/* Alert / Notification banners */}
       {errorMsg && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -98,7 +126,76 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Grid Dashboard */}
+      {settingsSuccess && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl p-4 flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="text-sm font-medium">
+            <span className="font-semibold block">Ayarlar Güncellendi</span>
+            <span className="opacity-95 mt-1 block leading-relaxed">{settingsSuccess}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Bot Control Center Card (Full Width at Top) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 sm:p-8 shadow-xl space-y-6">
+        <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+          <Settings className="w-5 h-5 text-blue-500" />
+          <h2 className="text-lg font-semibold tracking-tight text-white">Bot Kontrol Merkezi (Canlı Yönetim)</h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          {/* Bot active Toggle Switch */}
+          <div className="space-y-2">
+            <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Asistan Çalışma Durumu
+            </span>
+            <div className="flex items-center gap-3 bg-slate-950 border border-slate-800 p-4 rounded-xl">
+              <input
+                type="checkbox"
+                id="bot_active_toggle"
+                checked={botActive}
+                onChange={(e) => setBotActive(e.target.checked)}
+                className="w-5 h-5 text-blue-600 bg-slate-900 border-slate-700 rounded-md focus:ring-blue-500 focus:ring-2 cursor-pointer"
+              />
+              <label htmlFor="bot_active_toggle" className="text-sm font-medium text-slate-200 select-none cursor-pointer">
+                Yapay Zeka Asistanı Aktif
+              </label>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Bu seçeneği kapatırsanız, gelen mesajlara yapay zeka otomatik yanıt vermez.
+            </p>
+          </div>
+
+          {/* System prompt override field */}
+          <div className="md:col-span-2 space-y-2">
+            <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Sistem Talimatı (Prompt) Özel Kural Ekleme
+            </span>
+            <textarea
+              rows={2}
+              placeholder="Örn: Müşterilere ekstra nazik davranın. İndirim talebi gelirse sadece yetkiliye yönlendirin."
+              value={promptOverride}
+              onChange={(e) => setPromptOverride(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none font-sans"
+            />
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Yapay zekanın genel davranış kalıbına eklemek istediğiniz özel kuralları buraya yazabilirsiniz.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2 border-t border-slate-850">
+          <button
+            onClick={handleSaveSettings}
+            disabled={savingSettings}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-bold px-6 py-2.5 rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer"
+          >
+            {savingSettings ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
+          </button>
+        </div>
+      </div>
+
+      {/* Grid Dashboard: Quota & Stream */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Card 1: Limits & Plan Status (1 Column) */}
@@ -201,11 +298,11 @@ export default function Dashboard() {
                           </span>
                         </div>
                         
-                        <p className="text-sm text-slate-300 whitespace-pre-line leading-relaxed font-sans">
+                        <p className="text-sm text-gray-300 whitespace-pre-line leading-relaxed font-sans">
                           {log.text}
                         </p>
 
-                        <div className="flex items-center gap-4 pt-2 text-[10px] text-slate-500 font-mono">
+                        <div className="flex items-center gap-4 pt-2 text-[10px] text-gray-500 font-mono">
                           <span>MESAJID: {log.message_id}</span>
                           <span>KANAL: {log.channel.toUpperCase()}</span>
                         </div>
