@@ -26,7 +26,8 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_TESTS_DIR)
 sys.path.insert(0, os.path.join(_ROOT, "shared"))
 sys.path.insert(0, os.path.join(_ROOT, "core"))
 

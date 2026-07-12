@@ -34,9 +34,10 @@ from unittest.mock import MagicMock
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_TESTS_DIR)
 for _p in (
-    _ROOT,
+    _ROOT,                              # panel/ importable as a package
     os.path.join(_ROOT, "shared"),
     os.path.join(_ROOT, "core"),
     os.path.join(_ROOT, "packages"),

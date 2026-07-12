@@ -30,7 +30,8 @@ from unittest.mock import MagicMock, patch
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_TESTS_DIR)
 for _p in (
     os.path.join(_ROOT, "shared"),
     os.path.join(_ROOT, "core"),
