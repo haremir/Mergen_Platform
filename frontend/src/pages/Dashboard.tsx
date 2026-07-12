@@ -9,7 +9,6 @@ import {
 
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
-  // Read tenant_id from either the search parameters or fallback to a local storage or state
   const [tenantId, setTenantId] = useState<string>(
     searchParams.get('tenant_id') || '4cc9eef0-82eb-54ea-9999-desktest9999'
   );
@@ -34,7 +33,7 @@ export default function Dashboard() {
       setErrorMsg(
         err.response?.data?.detail || 
         err.message || 
-        'Failed to retrieve backend data. Make sure panel API server is running.'
+        'Failed to connect to Panel API server. Check if panel service is active.'
       );
     } finally {
       setLoading(false);
@@ -52,33 +51,35 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4">
-      {/* Upper Panel */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+    <div className="max-w-6xl mx-auto py-12 px-6 sm:px-8 space-y-8">
+      {/* Dashboard Top Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border-b border-gray-800 pb-8">
         <div>
-          <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
-            <Cpu className="w-8 h-8 text-violet-500" />
-            Desk Intelligence Panel
+          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+            <Cpu className="w-8 h-8 text-blue-500" />
+            Control Panel
           </h1>
-          <p className="text-gray-400 mt-1">
-            Realtime monitoring of AI chatbot conversations and subscription limits.
+          <p className="text-gray-400 mt-2 text-sm">
+            Monitor incoming client conversation logs and manage active quota consumption rates.
           </p>
         </div>
-        
-        {/* Tenant Switcher */}
-        <div className="flex items-center gap-3 bg-[#12131a] border border-[#23242f] px-3 py-2 rounded-xl w-full sm:w-auto">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tenant:</span>
+
+        {/* Tenant Switcher Input Field */}
+        <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 p-2 rounded-lg w-full md:w-auto">
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-2 select-none">
+            Tenant:
+          </span>
           <input
             type="text"
             value={tenantId}
             onChange={(e) => setTenantId(e.target.value)}
             placeholder="Enter Tenant UUID"
-            className="bg-[#181922] border border-[#2b2c3a] text-xs font-mono text-white px-3 py-1.5 rounded-lg w-full sm:w-60 focus:outline-none focus:border-violet-500"
+            className="bg-gray-950 border border-gray-700 text-xs font-mono text-gray-100 px-3 py-2 rounded-md w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
           <button
             onClick={handleRefresh}
             disabled={loading}
-            className="p-2 hover:bg-[#1f202b] text-gray-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+            className="p-2 hover:bg-gray-800 text-gray-400 hover:text-white rounded-md transition-all cursor-pointer shrink-0"
             title="Refresh logs & plan"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -86,105 +87,110 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Alert Component */}
       {errorMsg && (
-        <div className="bg-[#2a1215] border border-[#ef444450] text-[#ef4444] rounded-xl p-4 flex items-start gap-3 mb-8">
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
           <div className="text-sm font-medium">
-            <p className="font-semibold">Backend Connection Issue</p>
-            <p className="opacity-90 mt-1">{errorMsg}</p>
+            <span className="font-semibold block">Connection Refused</span>
+            <span className="opacity-95 mt-1 block leading-relaxed">{errorMsg}</span>
           </div>
         </div>
       )}
 
-      {/* Grid Layout */}
+      {/* Grid Dashboard */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Right side: Plan limits (1 col) */}
-        <div className="space-y-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-4">
-            <ShieldCheck className="w-5 h-5 text-violet-500" />
+        {/* Card 1: Limits & Plan Status (1 Column) */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-blue-500" />
             Quota & Limits
           </h2>
-
-          <div className="bg-[#12131a] border border-[#23242f] rounded-2xl p-6 space-y-6">
+          
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-6 shadow-xl">
             <div>
-              <span className="text-xs font-semibold text-gray-500 block uppercase tracking-wider">Active Plan</span>
-              <span className="text-2xl font-bold text-white capitalize">{plan?.plan || 'starter'}</span>
+              <span className="text-[10px] font-semibold text-gray-500 block uppercase tracking-wider mb-1">Active Plan</span>
+              <span className="text-2xl font-bold text-white capitalize">{plan?.plan || 'Starter'}</span>
             </div>
 
             {plan ? (
-              Object.entries(plan.limits).map(([key, limitVal]) => {
-                const percent = Math.min(100, Math.round((limitVal.used / limitVal.limit) * 100));
-                return (
-                  <div key={key} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400 capitalize">{key.replace('_', ' ')}</span>
-                      <span className="text-white font-medium">
-                        {limitVal.used} / {limitVal.limit} {limitVal.unit.split('/')[0]}
-                      </span>
+              <div className="space-y-6">
+                {Object.entries(plan.limits).map(([key, limitVal]) => {
+                  const percent = Math.min(100, Math.round((limitVal.used / limitVal.limit) * 100));
+                  return (
+                    <div key={key} className="space-y-2">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span className="text-gray-400 capitalize">{key.replace('_', ' ')}</span>
+                        <span className="text-gray-200">
+                          {limitVal.used} / {limitVal.limit} {limitVal.unit.split('/')[0]}
+                        </span>
+                      </div>
+                      
+                      {/* Premium Accent Progress Bar */}
+                      <div className="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-gray-850">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            percent > 90 ? 'bg-red-500' : percent > 75 ? 'bg-amber-500' : 'bg-blue-600'
+                          }`} 
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+
+                      <div className="flex justify-between text-[10px] text-gray-500 font-medium">
+                        <span>{percent}% consumed</span>
+                        <span>{limitVal.remaining} remaining</span>
+                      </div>
                     </div>
-                    {/* Progress Bar */}
-                    <div className="w-full bg-[#181922] h-2.5 rounded-full overflow-hidden border border-[#2b2c3a]">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          percent > 90 ? 'bg-red-500' : percent > 75 ? 'bg-yellow-500' : 'bg-violet-600'
-                        }`} 
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>{percent}% consumed</span>
-                      <span>{limitVal.remaining} remaining</span>
-                    </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             ) : (
-              <div className="text-gray-500 text-sm py-4">No plan configurations loaded.</div>
+              <div className="text-gray-500 text-sm py-4">No limits loaded.</div>
             )}
             
-            <div className="border-t border-[#23242f] pt-4 text-xs text-gray-500 italic">
+            <div className="border-t border-gray-800 pt-4 text-xs text-gray-500 italic leading-relaxed">
               {plan?.note || 'Standard limits configured.'}
             </div>
           </div>
         </div>
 
-        {/* Left side: Message Logs (2 cols) */}
+        {/* Card 2: Webhook Log Stream (2 Columns) */}
         <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-4">
-            <Terminal className="w-5 h-5 text-violet-500" />
+          <h2 className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-blue-500" />
             Live Webhook Logs
           </h2>
 
-          <div className="bg-[#12131a] border border-[#23242f] rounded-2xl overflow-hidden shadow-xl min-h-[400px] flex flex-col">
-            <div className="bg-[#181922] px-6 py-4 border-b border-[#23242f] flex justify-between items-center shrink-0">
-              <span className="text-sm font-semibold text-white">Recent events</span>
-              <span className="text-xs text-gray-500 font-mono">Channel: WhatsApp</span>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-xl min-h-[400px] flex flex-col">
+            <div className="bg-gray-950 px-6 py-4 border-b border-gray-800 flex justify-between items-center shrink-0">
+              <span className="text-xs font-bold text-white uppercase tracking-wider">Log Stream</span>
+              <span className="text-[10px] text-gray-500 font-mono">CHANNEL: WHATSAPP</span>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-4 flex-grow max-h-[500px]">
+            <div className="p-6 overflow-y-auto space-y-4 flex-grow max-h-[450px]">
               {logs.length > 0 ? (
                 logs.map((log) => {
                   const isInbound = log.direction === 'inbound';
                   return (
                     <div 
                       key={log.message_id} 
-                      className={`flex gap-4 p-4 rounded-xl border transition-colors ${
+                      className={`flex gap-4 p-4 rounded-lg border transition-all ${
                         isInbound 
-                          ? 'bg-[#181922]/50 border-[#2b2c3a]/50 hover:bg-[#181922]' 
-                          : 'bg-violet-500/5 border-violet-500/10 hover:bg-violet-500/10'
+                          ? 'bg-gray-950/40 border-gray-800/80 hover:bg-gray-950/80' 
+                          : 'bg-blue-600/5 border-blue-500/10 hover:bg-blue-600/10'
                       }`}
                     >
-                      {/* Avatar */}
+                      {/* Identity Bubble */}
                       <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center border ${
                         isInbound 
-                          ? 'bg-gray-800 border-gray-700 text-gray-400' 
-                          : 'bg-violet-600/15 border-violet-600/30 text-violet-400'
+                          ? 'bg-gray-900 border-gray-800 text-gray-400' 
+                          : 'bg-blue-600/15 border-blue-500/30 text-blue-400'
                       }`}>
-                        {isInbound ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+                        {isInbound ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                       </div>
 
-                      {/* Content */}
+                      {/* Content Section */}
                       <div className="flex-grow space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-white">
@@ -194,12 +200,14 @@ export default function Dashboard() {
                             {new Date(log.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-300 break-words font-sans whitespace-pre-line leading-relaxed">
+                        
+                        <p className="text-sm text-gray-300 whitespace-pre-line leading-relaxed font-sans">
                           {log.text}
                         </p>
-                        <div className="flex items-center gap-4 pt-1.5 text-[10px] text-gray-500 font-mono">
-                          <span>ID: {log.message_id}</span>
-                          <span>Channel: {log.channel}</span>
+
+                        <div className="flex items-center gap-4 pt-2 text-[10px] text-gray-500 font-mono">
+                          <span>MSGID: {log.message_id}</span>
+                          <span>CHANNEL: {log.channel.toUpperCase()}</span>
                         </div>
                       </div>
                     </div>
@@ -207,14 +215,14 @@ export default function Dashboard() {
                 })
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
-                  <MessageSquare className="w-12 h-12 text-gray-600" />
-                  <p className="text-gray-500 text-sm">No webhook logs matching tenant ID.</p>
+                  <MessageSquare className="w-12 h-12 text-gray-700" />
+                  <p className="text-gray-500 text-sm">No recent webhook log events matching this Tenant UUID.</p>
                 </div>
               )}
             </div>
-            
-            <div className="bg-[#181922] px-6 py-4 border-t border-[#23242f] text-xs text-gray-500 text-right shrink-0">
-              Mock dataset. Run client queries to view changes.
+
+            <div className="bg-gray-950 px-6 py-4 border-t border-gray-800 text-xs text-gray-500 text-right shrink-0">
+              Visualizing mock live stream. Registering new messages will update dashboard indicators.
             </div>
           </div>
         </div>
