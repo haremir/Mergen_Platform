@@ -41,6 +41,7 @@ _FIELD_TYPE_MAP: Dict[str, str] = {
     "social_media":          "contact",
     "languages_spoken":      "policy",
     "system_prompt_override": "system_prompt",
+    "persona":               "system_prompt",
 }
 
 REQUIRED_FIELDS: List[str] = [
@@ -56,6 +57,7 @@ OPTIONAL_FIELDS: List[str] = [
     "social_media",
     "languages_spoken",
     "system_prompt_override",
+    "persona",
 ]
 
 

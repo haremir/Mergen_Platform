@@ -195,6 +195,7 @@ def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
         "cancellation_policy": body.cancellation_policy,  # str
         "services":            body.services,            # List[Dict[str, str]]
         "faqs":                body.faqs,                # List[Dict[str, str]]
+        "persona":             body.persona,             # str
     }
     if body.pricing:
         raw_form["pricing"] = body.pricing
@@ -213,6 +214,10 @@ def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
         raw_form_data=raw_form,
         phone_number=body.phone_number,
         plan=body.plan or "starter",
+        sector=body.sector,
+        persona=body.persona,
+        meta_phone_id=body.meta_phone_id,
+        meta_access_token=body.meta_access_token,
     )
 
     return OnboardingResponse(

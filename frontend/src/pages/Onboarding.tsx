@@ -39,6 +39,7 @@ export default function Onboarding() {
   const [plan, setPlan] = useState('starter');
   const [sector, setSector] = useState('hairdresser');
   const [persona, setPersona] = useState('friendly_energetic');
+  const [product, setProduct] = useState('desk');
 
   // Dynamic lists for FAQs and Services
   const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([
@@ -114,7 +115,8 @@ export default function Onboarding() {
       sector: sector,
       persona: persona,
       meta_phone_id: metaPhoneId,
-      meta_access_token: metaAccessToken || undefined
+      meta_access_token: metaAccessToken || undefined,
+      product: product
     };
 
     try {
@@ -469,9 +471,22 @@ export default function Onboarding() {
                 >
                   <option value="hairdresser">Kuaför / Barber</option>
                   <option value="beauty_salon">Güzellik Merkezi</option>
-                  <option value="dental_clinic">Diş Kliniği</option>
                   <option value="restaurant">Restoran / Kafe</option>
                   <option value="other">Diğer</option>
+                </select>
+              </div>
+
+              {/* Mergen Ürünü (Product) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Mergen Ürünü (Product) *
+                </label>
+                <select
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
+                >
+                  <option value="desk">Mergen Desk (Masa ve Rezervasyon Yönetimi)</option>
                 </select>
               </div>
 
