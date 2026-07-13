@@ -20,6 +20,10 @@ export default function Onboarding() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [metaPhoneId, setMetaPhoneId] = useState('');
   const [metaAccessToken, setMetaAccessToken] = useState('');
+  const [instagramToken, setInstagramToken] = useState('');
+  const [telegramToken, setTelegramToken] = useState('');
+  const [useInstagram, setUseInstagram] = useState(false);
+  const [useTelegram, setUseTelegram] = useState(false);
   
   // Structured Business Hours dictionary
   const [businessHours, setBusinessHours] = useState<Record<string, string>>({
@@ -116,7 +120,9 @@ export default function Onboarding() {
       persona: persona,
       meta_phone_id: metaPhoneId,
       meta_access_token: metaAccessToken || undefined,
-      product: product
+      product: product,
+      instagram_token: useInstagram ? instagramToken || undefined : undefined,
+      telegram_token: useTelegram ? telegramToken || undefined : undefined
     };
 
     try {
@@ -168,7 +174,7 @@ export default function Onboarding() {
           <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-blue-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Building2 className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği ve Meta API Entegrasyonu</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-white">Çok Kanallı (Omnichannel) API Entegrasyonu</h2>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -230,6 +236,63 @@ export default function Onboarding() {
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
                 />
               </div>
+
+              {/* Toggles for Instagram and Telegram */}
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-800 pt-4">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useInstagram}
+                    onChange={(e) => setUseInstagram(e.target.checked)}
+                    className="w-4.5 h-4.5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900 focus:ring-2"
+                  />
+                  <span className="text-xs text-slate-300 font-semibold">Instagram Bot Entegrasyonunu Aktifleştir</span>
+                </label>
+                
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useTelegram}
+                    onChange={(e) => setUseTelegram(e.target.checked)}
+                    className="w-4.5 h-4.5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900 focus:ring-2"
+                  />
+                  <span className="text-xs text-slate-300 font-semibold">Telegram Bot Entegrasyonunu Aktifleştir</span>
+                </label>
+              </div>
+
+              {/* Instagram Token input (Conditional) */}
+              {useInstagram && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Instagram Graph API Token *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Örn: EAAx2..."
+                    value={instagramToken}
+                    onChange={(e) => setInstagramToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono text-xs"
+                  />
+                </div>
+              )}
+
+              {/* Telegram Token input (Conditional) */}
+              {useTelegram && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Telegram Bot Token *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Örn: 123456:ABC-def..."
+                    value={telegramToken}
+                    onChange={(e) => setTelegramToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono text-xs"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -450,15 +513,14 @@ export default function Onboarding() {
             </div>
           </div>
 
-          {/* Pricing Notes & AI Config Card */}
+          {/* Card 6: AI Yapılandırması ve Ürün Seçimi */}
           <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-slate-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Sparkles className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-white">Ek Ayarlar ve Yapay Zeka Özellikleri</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-white">Yapay Zeka Yapılandırması</h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {/* Faaliyet Alanı / Sektör */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
@@ -505,21 +567,17 @@ export default function Onboarding() {
                   <option value="persuasive_sales">İkna Edici / Satış Odaklı</option>
                 </select>
               </div>
+            </div>
+          </div>
 
-              {/* Pricing notes */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Genel Fiyat Notları (Opsiyonel)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Örn: Tüm fiyatlara KDV dahildir. Kredi kartı geçerlidir."
-                  value={pricing}
-                  onChange={(e) => setPricing(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-xs"
-                />
-              </div>
+          {/* Card 7: Abonelik ve Fiyatlandırma */}
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-amber-500 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+              <Building2 className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold tracking-tight text-white">Abonelik ve Fiyatlandırma</h2>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Monthly Subscription plan */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
@@ -534,6 +592,20 @@ export default function Onboarding() {
                   <option value="business">İşletme Paketi (2000 Mesaj)</option>
                   <option value="premium">Premium (Sınırsız)</option>
                 </select>
+              </div>
+
+              {/* Pricing notes */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Genel Fiyat Notları (Opsiyonel)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Örn: Tüm fiyatlara KDV dahildir. Kredi kartı geçerlidir."
+                  value={pricing}
+                  onChange={(e) => setPricing(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-xs"
+                />
               </div>
             </div>
           </div>

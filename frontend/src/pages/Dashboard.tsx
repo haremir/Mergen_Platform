@@ -8,6 +8,13 @@ import {
   Search, X, Eye, ShieldAlert
 } from 'lucide-react';
 
+const SECTOR_TURKISH_LABELS: Record<string, string> = {
+  hairdresser: 'Kuaför / Barber',
+  beauty_salon: 'Güzellik Merkezi',
+  restaurant: 'Restoran / Kafe',
+  other: 'Diğer',
+};
+
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -15,6 +22,8 @@ export default function Dashboard() {
   const [tenants, setTenants] = useState<TenantListEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [filterSector, setFilterSector] = useState('');
+  const [filterProduct, setFilterProduct] = useState('');
   const [loadingTenants, setLoadingTenants] = useState(false);
   
   // Selected Tenant Details (Slide-over / Modal)
@@ -154,7 +163,9 @@ export default function Dashboard() {
     const matchesSearch = t.business_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           t.tenant_id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesSector = !filterSector || t.sector === filterSector;
+    const matchesProduct = !filterProduct || t.product === filterProduct;
+    return matchesSearch && matchesStatus && matchesSector && matchesProduct;
   });
 
   // Group logs by sender (conversations)
@@ -223,32 +234,57 @@ export default function Dashboard() {
 
       {/* Filters & Search Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <div className="p-6 border-b border-slate-800 bg-slate-900/60 flex flex-col sm:flex-row gap-4 justify-between items-center">
+        <div className="p-6 border-b border-slate-800 bg-slate-900/60 flex flex-col xl:flex-row gap-4 justify-between xl:items-center">
           
-          {/* Search Box */}
-          <div className="relative w-full sm:w-80">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-              <Search className="w-4 h-4" />
-            </span>
-            <input
-              type="text"
-              placeholder="İşletme adı veya UUID ile ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-xs text-slate-100 pl-10 pr-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            />
-            {searchTerm && (
-              <button 
-                onClick={() => setSearchTerm('')} 
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch sm:items-center">
+            {/* Search Box */}
+            <div className="relative w-full sm:w-64">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                <Search className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                placeholder="İşletme adı veya UUID ile ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 text-xs text-slate-100 pl-10 pr-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm('')} 
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Sektör Filtresi */}
+            <select
+              value={filterSector}
+              onChange={(e) => setFilterSector(e.target.value)}
+              className="bg-slate-950 border border-slate-700 text-xs text-slate-300 px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+            >
+              <option value="">Sektör: Tümü</option>
+              <option value="hairdresser">Kuaför</option>
+              <option value="beauty_salon">Güzellik Merkezi</option>
+              <option value="restaurant">Restoran</option>
+              <option value="other">Diğer</option>
+            </select>
+
+            {/* Ürün Filtresi */}
+            <select
+              value={filterProduct}
+              onChange={(e) => setFilterProduct(e.target.value)}
+              className="bg-slate-950 border border-slate-700 text-xs text-slate-300 px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+            >
+              <option value="">Ürün: Tümü</option>
+              <option value="desk">Desk</option>
+            </select>
           </div>
 
           {/* Status Tabs */}
-          <div className="flex gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800 w-full sm:w-auto overflow-x-auto">
+          <div className="flex gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800 w-full xl:w-auto overflow-x-auto">
             <button
               onClick={() => setStatusFilter('all')}
               className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
@@ -291,6 +327,7 @@ export default function Dashboard() {
               <tr className="border-b border-slate-800 bg-slate-950/40 text-[10px] font-bold text-slate-500 uppercase tracking-wider select-none">
                 <th className="py-4 px-6">İşletme Adı / UUID</th>
                 <th className="py-4 px-6">Hizmet Sektörü</th>
+                <th className="py-4 px-6">Mergen Ürünü</th>
                 <th className="py-4 px-6">Paket</th>
                 <th className="py-4 px-6">WhatsApp Durumu</th>
                 <th className="py-4 px-6 text-center">Durum</th>
@@ -315,7 +352,12 @@ export default function Dashboard() {
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-xs text-slate-300 font-medium">
-                        {t.sector === 'desk' ? 'Desk (Resepsiyonist)' : t.sector}
+                        {SECTOR_TURKISH_LABELS[t.sector] || t.sector}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider font-semibold">
+                        {t.product}
                       </span>
                     </td>
                     <td className="py-4 px-6">
