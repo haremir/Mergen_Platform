@@ -18,4 +18,6 @@ dependencies = [
 
 [tool.uv]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=8.4.2",
+]
