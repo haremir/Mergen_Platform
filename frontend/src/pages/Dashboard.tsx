@@ -4,7 +4,7 @@ import { getTenants, getLogs, getPlan, updateTenantSettings } from '../api';
 import type { TenantListEntry, LogEntry, PlanResult } from '../api';
 import { 
   ShieldCheck, Cpu, RefreshCw, 
-  MessageSquare, User, Bot, Settings, CheckCircle2,
+  MessageSquare, Settings, CheckCircle2,
   Search, X, Eye, ShieldAlert
 } from 'lucide-react';
 
@@ -29,6 +29,9 @@ export default function Dashboard() {
   const [promptOverride, setPromptOverride] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+
+  // WhatsApp Web Chat History state
+  const [activeChatSender, setActiveChatSender] = useState<string | null>(null);
 
   // Load master list on mount
   const fetchTenantsList = async () => {
@@ -58,6 +61,18 @@ export default function Dashboard() {
       ]);
       setLogs(logsData.messages);
       setPlan(planData);
+
+      // Auto-select first chat sender if any logs exist
+      if (logsData.messages && logsData.messages.length > 0) {
+        const uniqueSenders = Array.from(new Set(logsData.messages.map((m: any) => m.sender)));
+        if (uniqueSenders.length > 0) {
+          setActiveChatSender(uniqueSenders[0]);
+        } else {
+          setActiveChatSender(null);
+        }
+      } else {
+        setActiveChatSender(null);
+      }
     } catch (err: any) {
       console.error(err);
       setDetailsError(
@@ -78,6 +93,7 @@ export default function Dashboard() {
     setSettingsSuccess(null);
     setLogs([]);
     setPlan(null);
+    setActiveChatSender(null);
     fetchDetails(tenant.tenant_id);
     
     // Sync to URL query param
@@ -140,6 +156,24 @@ export default function Dashboard() {
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // Group logs by sender (conversations)
+  const conversations: Record<string, LogEntry[]> = {};
+  logs.forEach((log) => {
+    if (!conversations[log.sender]) {
+      conversations[log.sender] = [];
+    }
+    conversations[log.sender].push(log);
+  });
+
+  // Sort messages in each conversation chronologically
+  const groupedChats = Object.entries(conversations).reduce((acc, [sender, msgs]) => {
+    const sorted = [...msgs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    acc[sender] = sorted;
+    return acc;
+  }, {} as Record<string, LogEntry[]>);
+
+  const senders = Object.keys(groupedChats);
 
   // KPI calculations
   const totalCount = tenants.length;
@@ -420,14 +454,19 @@ export default function Dashboard() {
 
                   {/* Prompt Textarea */}
                   <div className="md:col-span-2 space-y-2">
-                    <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Özel Sistem Prompt Kuralları</span>
+                    <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-blue-400">
+                      Geçici Özel Kurallar (Örn: Bugün %10 indirim yap)
+                    </span>
                     <textarea
                       rows={2}
-                      placeholder="Örn: Müşterilere indirim önermeyin, fiyatlar sabittir deyin."
+                      placeholder="Genel karakter şablonunu değiştirmeden, sadece bugünlük kampanya kuralları, indirimler veya istisnai direktifleri buraya yazabilirsiniz. Örn: 'Bugün tüm saç kesimlerinde %10 indirimimiz olduğunu ilet.'"
                       value={promptOverride}
                       onChange={(e) => setPromptOverride(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-sans"
                     />
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Lütfen Dikkat: Burası ana sistem talimatı (Base System Prompt) yerine geçmez, sadece ana talimata anlık ek kurallar eklemek için kullanılır.
+                    </p>
                   </div>
                 </div>
 
@@ -484,59 +523,89 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* SECTION 3: Live Logs */}
-              <div className="bg-slate-900 border border-slate-850 rounded-xl overflow-hidden shadow-xl flex flex-col">
-                <div className="bg-slate-950 px-6 py-4 border-b border-slate-850 flex justify-between items-center">
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">Canlı Webhook Konuşma Akışı</span>
-                  <span className="text-[10px] text-slate-500 font-mono">ID: {selectedTenant.tenant_id.slice(0,8)}...</span>
+              {/* SECTION 3: WhatsApp Web-style Chat History */}
+              <div className="bg-slate-900 border border-slate-850 rounded-xl overflow-hidden shadow-xl flex flex-col h-[500px]">
+                <div className="bg-slate-950 px-6 py-4 border-b border-slate-850 flex justify-between items-center shrink-0">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">Müşteri Sohbet Geçmişi (Canlı Akış)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">KANAL: WHATSAPP</span>
                 </div>
 
-                <div className="p-6 overflow-y-auto space-y-4 max-h-[350px]">
-                  {loadingDetails && logs.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-slate-500">Canlı loglar akışı çekiliyor...</div>
-                  ) : logs.length > 0 ? (
-                    logs.map((log) => {
-                      const isInbound = log.direction === 'inbound';
-                      return (
-                        <div 
-                          key={log.message_id} 
-                          className={`flex gap-3 p-4 rounded-lg border transition-all ${
-                            isInbound 
-                              ? 'bg-slate-950/40 border-slate-850/80 hover:bg-slate-950/80' 
-                              : 'bg-blue-600/5 border-blue-500/10 hover:bg-blue-600/10'
-                          }`}
-                        >
-                          <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center border ${
-                            isInbound 
-                              ? 'bg-slate-900 border-slate-850 text-slate-400' 
-                              : 'bg-blue-600/15 border-blue-500/30 text-blue-400'
-                          }`}>
-                            {isInbound ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
-                          </div>
-
-                          <div className="flex-grow space-y-1 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-white">
-                                {isInbound ? `Gönderen (${log.sender})` : 'Mergen AI Receptionist'}
-                              </span>
-                              <span className="text-[9px] text-slate-500 font-mono">
-                                {new Date(log.timestamp).toLocaleTimeString()}
+                <div className="flex flex-1 overflow-hidden">
+                  
+                  {/* LEFT PANE: Unique customers */}
+                  <div className="w-1/3 border-r border-slate-850 overflow-y-auto bg-slate-950/20">
+                    {loadingDetails && logs.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500">Konuşmalar yükleniyor...</div>
+                    ) : senders.length > 0 ? (
+                      senders.map((sender) => {
+                        const chatMsgs = groupedChats[sender];
+                        const lastMsg = chatMsgs[chatMsgs.length - 1];
+                        const isActive = activeChatSender === sender;
+                        return (
+                          <div
+                            key={sender}
+                            onClick={() => setActiveChatSender(sender)}
+                            className={`p-4 border-b border-slate-850/40 cursor-pointer transition-all hover:bg-slate-800/40 ${
+                              isActive ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''
+                            }`}
+                          >
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="text-xs font-bold text-slate-200 block truncate">{sender}</span>
+                              <span className="text-[9px] text-slate-500 font-mono shrink-0">
+                                {new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            
-                            <p className="text-slate-300 leading-relaxed font-sans select-text whitespace-pre-line">
-                              {log.text}
+                            <p className="text-[11px] text-slate-400 truncate leading-relaxed">
+                              {lastMsg.direction === 'outbound' ? 'Bot: ' : ''}{lastMsg.text}
                             </p>
                           </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-6 text-center text-xs text-slate-500 italic">Konuşma kaydı bulunamadı.</div>
+                    )}
+                  </div>
+
+                  {/* RIGHT PANE: Chat History Bubbles */}
+                  <div className="flex-1 flex flex-col overflow-hidden bg-slate-950/50">
+                    {activeChatSender && groupedChats[activeChatSender] ? (
+                      <>
+                        {/* Chat Header */}
+                        <div className="bg-slate-900/60 px-5 py-3 border-b border-slate-850 shrink-0 flex items-center justify-between">
+                          <span className="text-xs font-semibold text-white">{activeChatSender} ile Konuşma</span>
+                          <span className="text-[10px] text-slate-500 font-mono">{groupedChats[activeChatSender].length} mesaj</span>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
-                      <MessageSquare className="w-10 h-10 text-slate-700" />
-                      <p className="text-slate-500 text-xs max-w-xs">Bu kiracıya ait canlı webhook konuşma kaydı bulunmamaktadır.</p>
-                    </div>
-                  )}
+
+                        {/* Message list container */}
+                        <div className="flex-grow overflow-y-auto p-5 space-y-4 flex flex-col">
+                          {groupedChats[activeChatSender].map((msg) => {
+                            const isInbound = msg.direction === 'inbound';
+                            return (
+                              <div
+                                key={msg.message_id}
+                                className={`max-w-[75%] rounded-xl px-4 py-2.5 text-xs leading-relaxed space-y-1 relative group ${
+                                  isInbound 
+                                    ? 'bg-slate-800 text-slate-100 self-start rounded-tl-none' 
+                                    : 'bg-blue-600 text-white self-end rounded-tr-none'
+                                }`}
+                              >
+                                <p className="whitespace-pre-line font-sans select-text">{msg.text}</p>
+                                <div className={`text-[8px] text-right font-mono mt-1 ${isInbound ? 'text-slate-400' : 'text-blue-200'}`}>
+                                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex-grow flex flex-col items-center justify-center text-center p-6 space-y-3">
+                        <MessageSquare className="w-10 h-10 text-slate-700" />
+                        <p className="text-slate-500 text-xs max-w-xs">Görüntülemek istediğiniz konuşmayı soldaki listeden seçin.</p>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </div>
 
