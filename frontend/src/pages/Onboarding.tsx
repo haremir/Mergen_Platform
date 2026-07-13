@@ -18,6 +18,8 @@ const DAYS = [
 export default function Onboarding() {
   const [businessName, setBusinessName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [metaPhoneId, setMetaPhoneId] = useState('');
+  const [metaAccessToken, setMetaAccessToken] = useState('');
   
   // Structured Business Hours dictionary
   const [businessHours, setBusinessHours] = useState<Record<string, string>>({
@@ -35,6 +37,8 @@ export default function Onboarding() {
   const [contactInfo, setContactInfo] = useState('');
   const [pricing, setPricing] = useState('');
   const [plan, setPlan] = useState('starter');
+  const [sector, setSector] = useState('hairdresser');
+  const [persona, setPersona] = useState('friendly_energetic');
 
   // Dynamic lists for FAQs and Services
   const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([
@@ -106,7 +110,11 @@ export default function Onboarding() {
       services: cleanedServices,
       faqs: cleanedFaqs,
       pricing: pricing,
-      plan: plan
+      plan: plan,
+      sector: sector,
+      persona: persona,
+      meta_phone_id: metaPhoneId,
+      meta_access_token: metaAccessToken || undefined
     };
 
     try {
@@ -154,16 +162,16 @@ export default function Onboarding() {
       {!result ? (
         <form onSubmit={handleSubmit} className="space-y-8">
           
-          {/* Card 1: Business Identity */}
+          {/* Card 1: Business Identity & Meta API Integration */}
           <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-blue-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Building2 className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği (WhatsApp Bağlantısı)</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği ve Meta API Entegrasyonu</h2>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Business Name */}
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   İşletme Adı *
                 </label>
@@ -180,7 +188,7 @@ export default function Onboarding() {
               {/* WhatsApp Phone Number */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  WhatsApp Numarası *
+                  WhatsApp Telefon Numarası *
                 </label>
                 <input
                   type="text"
@@ -189,6 +197,35 @@ export default function Onboarding() {
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              {/* Meta Phone Number ID */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Meta Phone Number ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Örn: 104857204857302"
+                  value={metaPhoneId}
+                  onChange={(e) => setMetaPhoneId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              {/* Meta Access Token (Optional) */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Meta Access Token (Geçici Bulut API Erişim Anahtarı - Opsiyonel)
+                </label>
+                <input
+                  type="password"
+                  placeholder="Eğer boş bırakılırsa, varsayılan platform erişim anahtarı kullanılacaktır"
+                  value={metaAccessToken}
+                  onChange={(e) => setMetaAccessToken(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
                 />
               </div>
             </div>
@@ -411,14 +448,50 @@ export default function Onboarding() {
             </div>
           </div>
 
-          {/* Pricing Notes & Limits Card */}
+          {/* Pricing Notes & AI Config Card */}
           <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-slate-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Sparkles className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-white">Ek Ayarlar ve Abonelik Paketi</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-white">Ek Ayarlar ve Yapay Zeka Özellikleri</h2>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              
+              {/* Faaliyet Alanı / Sektör */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Faaliyet Alanı / Sektör *
+                </label>
+                <select
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
+                >
+                  <option value="hairdresser">Kuaför / Barber</option>
+                  <option value="beauty_salon">Güzellik Merkezi</option>
+                  <option value="dental_clinic">Diş Kliniği</option>
+                  <option value="restaurant">Restoran / Kafe</option>
+                  <option value="other">Diğer</option>
+                </select>
+              </div>
+
+              {/* Yapay Zeka Karakteri (Persona) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Yapay Zeka Karakteri (Persona) *
+                </label>
+                <select
+                  value={persona}
+                  onChange={(e) => setPersona(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
+                >
+                  <option value="corporate_formal">Kurumsal / Resmi</option>
+                  <option value="friendly_energetic">Samimi / Enerjik</option>
+                  <option value="persuasive_sales">İkna Edici / Satış Odaklı</option>
+                </select>
+              </div>
+
+              {/* Pricing notes */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Genel Fiyat Notları (Opsiyonel)
@@ -428,10 +501,11 @@ export default function Onboarding() {
                   placeholder="Örn: Tüm fiyatlara KDV dahildir. Kredi kartı geçerlidir."
                   value={pricing}
                   onChange={(e) => setPricing(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-xs"
                 />
               </div>
 
+              {/* Monthly Subscription plan */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Aylık Paket (Limit)
@@ -439,7 +513,7 @@ export default function Onboarding() {
                 <select
                   value={plan}
                   onChange={(e) => setPlan(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
                 >
                   <option value="starter">Başlangıç Paketi (500 Mesaj)</option>
                   <option value="business">İşletme Paketi (2000 Mesaj)</option>

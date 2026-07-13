@@ -23,6 +23,10 @@ export interface OnboardingPayload {
   faqs?: { question: string; answer: string }[];
   pricing?: string;
   plan?: string;
+  sector: string;
+  persona: string;
+  meta_phone_id: string;
+  meta_access_token?: string;
 }
 
 export interface OnboardingResult {
