@@ -28,11 +28,11 @@ async def worker(client: httpx.AsyncClient, worker_id: int) -> int:
     payload = {
         "business_name": f"Stress Test Business {worker_id}",
         "phone_number": f"+90555000{worker_id:04d}",
-        "business_hours": "Mon-Fri 09:00-18:00",
+        "business_hours": {"monday": "09:00-18:00", "tuesday": "09:00-18:00"},
         "location": "Kadikoy, Istanbul",
         "cancellation_policy": "24 hours notice required",
         "contact_info": f"stress_{worker_id}@example.com",
-        "services": "Testing service",
+        "services": [{"name": "Testing service", "price": "100 TL", "description": "Testing description"}],
         "pricing": "Testing pricing",
         "plan": "starter"
     }

@@ -1,7 +1,9 @@
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
-import { Sparkles, LayoutDashboard, UserCheck, Code, Activity } from 'lucide-react';
+import Settings from './pages/Settings';
+import Analytics from './pages/Analytics';
+import { Sparkles, LayoutDashboard, UserCheck, Code, Activity, Settings as SettingsGear, BarChart3 } from 'lucide-react';
 
 function Sidebar() {
   const location = useLocation();
@@ -28,6 +30,7 @@ function Sidebar() {
           <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Yönlendirme
           </div>
+          
           <Link
             to="/onboarding"
             className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
@@ -50,6 +53,30 @@ function Sidebar() {
           >
             <LayoutDashboard className="w-5 h-5" />
             Kontrol Paneli
+          </Link>
+
+          <Link
+            to="/analytics"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              isActive('/analytics')
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            Analiz ve Performans
+          </Link>
+
+          <Link
+            to="/settings"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              isActive('/settings')
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+            }`}
+          >
+            <SettingsGear className="w-5 h-5" />
+            Sistem Ayarları
           </Link>
         </nav>
       </div>
@@ -81,6 +108,8 @@ export default function App() {
           <Routes>
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route path="*" element={<Navigate to="/onboarding" replace />} />
           </Routes>
         </main>
