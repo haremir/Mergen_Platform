@@ -18,6 +18,12 @@ const DAYS = [
 export default function Onboarding() {
   const [businessName, setBusinessName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [metaPhoneId, setMetaPhoneId] = useState('');
+  const [metaAccessToken, setMetaAccessToken] = useState('');
+  const [instagramToken, setInstagramToken] = useState('');
+  const [telegramToken, setTelegramToken] = useState('');
+  const [useInstagram, setUseInstagram] = useState(false);
+  const [useTelegram, setUseTelegram] = useState(false);
   
   // Structured Business Hours dictionary
   const [businessHours, setBusinessHours] = useState<Record<string, string>>({
@@ -35,6 +41,9 @@ export default function Onboarding() {
   const [contactInfo, setContactInfo] = useState('');
   const [pricing, setPricing] = useState('');
   const [plan, setPlan] = useState('starter');
+  const [sector, setSector] = useState('hairdresser');
+  const [persona, setPersona] = useState('friendly_energetic');
+  const [product, setProduct] = useState('desk');
 
   // Dynamic lists for FAQs and Services
   const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([
@@ -106,7 +115,14 @@ export default function Onboarding() {
       services: cleanedServices,
       faqs: cleanedFaqs,
       pricing: pricing,
-      plan: plan
+      plan: plan,
+      sector: sector,
+      persona: persona,
+      meta_phone_id: metaPhoneId,
+      meta_access_token: metaAccessToken || undefined,
+      product: product,
+      instagram_token: useInstagram ? instagramToken || undefined : undefined,
+      telegram_token: useTelegram ? telegramToken || undefined : undefined
     };
 
     try {
@@ -154,16 +170,16 @@ export default function Onboarding() {
       {!result ? (
         <form onSubmit={handleSubmit} className="space-y-8">
           
-          {/* Card 1: Business Identity */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          {/* Card 1: Business Identity & Meta API Integration */}
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-blue-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Building2 className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği (WhatsApp Bağlantısı)</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-white">Çok Kanallı (Omnichannel) API Entegrasyonu</h2>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Business Name */}
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   İşletme Adı *
                 </label>
@@ -180,7 +196,7 @@ export default function Onboarding() {
               {/* WhatsApp Phone Number */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  WhatsApp Numarası *
+                  WhatsApp Telefon Numarası *
                 </label>
                 <input
                   type="text"
@@ -191,11 +207,97 @@ export default function Onboarding() {
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
+
+              {/* Meta Phone Number ID */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Meta Phone Number ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Örn: 104857204857302"
+                  value={metaPhoneId}
+                  onChange={(e) => setMetaPhoneId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              {/* Meta Access Token (Optional) */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Meta Access Token (Geçici Bulut API Erişim Anahtarı - Opsiyonel)
+                </label>
+                <input
+                  type="password"
+                  placeholder="Eğer boş bırakılırsa, varsayılan platform erişim anahtarı kullanılacaktır"
+                  value={metaAccessToken}
+                  onChange={(e) => setMetaAccessToken(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
+                />
+              </div>
+
+              {/* Toggles for Instagram and Telegram */}
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-800 pt-4">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useInstagram}
+                    onChange={(e) => setUseInstagram(e.target.checked)}
+                    className="w-4.5 h-4.5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900 focus:ring-2"
+                  />
+                  <span className="text-xs text-slate-300 font-semibold">Instagram Bot Entegrasyonunu Aktifleştir</span>
+                </label>
+                
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useTelegram}
+                    onChange={(e) => setUseTelegram(e.target.checked)}
+                    className="w-4.5 h-4.5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900 focus:ring-2"
+                  />
+                  <span className="text-xs text-slate-300 font-semibold">Telegram Bot Entegrasyonunu Aktifleştir</span>
+                </label>
+              </div>
+
+              {/* Instagram Token input (Conditional) */}
+              {useInstagram && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Instagram Graph API Token *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Örn: EAAx2..."
+                    value={instagramToken}
+                    onChange={(e) => setInstagramToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono text-xs"
+                  />
+                </div>
+              )}
+
+              {/* Telegram Token input (Conditional) */}
+              {useTelegram && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Telegram Bot Token *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Örn: 123456:ABC-def..."
+                    value={telegramToken}
+                    onChange={(e) => setTelegramToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono text-xs"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
           {/* Card 2: Business Hours (Structured) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-indigo-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <RefreshCw className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">Çalışma Saatleri (Haftalık Program) *</h2>
@@ -221,7 +323,7 @@ export default function Onboarding() {
           </div>
 
           {/* Card 3: Location and Policies */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-cyan-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <FileText className="w-5 h-5 text-blue-500" />
               <h2 className="text-lg font-semibold tracking-tight text-white">Temel Bilgiler ve Kurallar</h2>
@@ -276,7 +378,7 @@ export default function Onboarding() {
           </div>
 
           {/* Card 4: Services Ingestion (Dynamic) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-emerald-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-blue-500" />
@@ -344,8 +446,8 @@ export default function Onboarding() {
             </div>
           </div>
 
-          {/* Card 5: FAQs Ingestion (Dynamic) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          {/* Card 5: FAQs Ingestion (Dynamic Stacked Layout) */}
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-purple-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-blue-500" />
@@ -361,53 +463,138 @@ export default function Onboarding() {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               {faqs.map((faq, index) => (
-                <div key={index} className="flex gap-4 items-start bg-slate-950/40 border border-slate-850 p-4 rounded-xl relative group">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow">
+                <div key={index} className="flex gap-4 items-start bg-slate-950/40 border border-slate-850 p-6 rounded-xl relative group">
+                  <div className="flex-grow space-y-4">
+                    {/* Question (Full Width on Top) */}
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Müşterinin Sorabileceği Soru</label>
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Soru (Müşterinin Sorabileceği Soru) *
+                      </label>
                       <input
                         type="text"
+                        required
                         placeholder="Örn: Otoparkınız var mı?"
                         value={faq.question}
                         onChange={(e) => handleFaqChange(index, 'question', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                       />
                     </div>
+
+                    {/* Answer Textarea (Full Width Stacked Below) */}
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Yapay Zeka Tarafından Verilecek Cevap</label>
-                      <input
-                        type="text"
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Cevap (Yapay Zeka Tarafından Verilecek Detaylı Cevap) *
+                      </label>
+                      <textarea
+                        required
+                        rows={3}
                         placeholder="Örn: Evet, salonumuzun önünde ücretsiz müşteri otoparkımız mevcuttur."
                         value={faq.answer}
                         onChange={(e) => handleFaqChange(index, 'answer', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
                       />
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFaq(index)}
-                    className="mt-6 p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
-                    title="Soruyu Sil"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {faqs.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFaq(index)}
+                      className="mt-6 p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
+                      title="Soruyu Sil"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Pricing Notes & Limits Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl space-y-6">
+          {/* Card 6: AI Yapılandırması ve Ürün Seçimi */}
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-slate-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Sparkles className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-white">Ek Ayarlar ve Abonelik Paketi</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-white">Yapay Zeka Yapılandırması</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {/* Faaliyet Alanı / Sektör */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Faaliyet Alanı / Sektör *
+                </label>
+                <select
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
+                >
+                  <option value="hairdresser">Kuaför / Barber</option>
+                  <option value="beauty_salon">Güzellik Merkezi</option>
+                  <option value="restaurant">Restoran / Kafe</option>
+                  <option value="other">Diğer</option>
+                </select>
+              </div>
+
+              {/* Mergen Ürünü (Product) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Mergen Ürünü (Product) *
+                </label>
+                <select
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
+                >
+                  <option value="desk">Mergen Desk (Masa ve Rezervasyon Yönetimi)</option>
+                </select>
+              </div>
+
+              {/* Yapay Zeka Karakteri (Persona) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Yapay Zeka Karakteri (Persona) *
+                </label>
+                <select
+                  value={persona}
+                  onChange={(e) => setPersona(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
+                >
+                  <option value="corporate_formal">Kurumsal / Resmi</option>
+                  <option value="friendly_energetic">Samimi / Enerjik</option>
+                  <option value="persuasive_sales">İkna Edici / Satış Odaklı</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 7: Abonelik ve Fiyatlandırma */}
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-amber-500 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+              <Building2 className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold tracking-tight text-white">Abonelik ve Fiyatlandırma</h2>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Monthly Subscription plan */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Aylık Paket (Limit)
+                </label>
+                <select
+                  value={plan}
+                  onChange={(e) => setPlan(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer text-xs"
+                >
+                  <option value="starter">Başlangıç Paketi (500 Mesaj)</option>
+                  <option value="business">İşletme Paketi (2000 Mesaj)</option>
+                  <option value="premium">Premium (Sınırsız)</option>
+                </select>
+              </div>
+
+              {/* Pricing notes */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                   Genel Fiyat Notları (Opsiyonel)
@@ -417,23 +604,8 @@ export default function Onboarding() {
                   placeholder="Örn: Tüm fiyatlara KDV dahildir. Kredi kartı geçerlidir."
                   value={pricing}
                   onChange={(e) => setPricing(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-xs"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Aylık Paket (Limit)
-                </label>
-                <select
-                  value={plan}
-                  onChange={(e) => setPlan(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
-                >
-                  <option value="starter">Başlangıç Paketi (500 Mesaj)</option>
-                  <option value="business">İşletme Paketi (2000 Mesaj)</option>
-                  <option value="premium">Premium (Sınırsız)</option>
-                </select>
               </div>
             </div>
           </div>

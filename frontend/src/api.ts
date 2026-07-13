@@ -23,6 +23,13 @@ export interface OnboardingPayload {
   faqs?: { question: string; answer: string }[];
   pricing?: string;
   plan?: string;
+  sector: string;
+  persona: string;
+  meta_phone_id: string;
+  meta_access_token?: string;
+  product: string;
+  instagram_token?: string;
+  telegram_token?: string;
 }
 
 export interface OnboardingResult {
@@ -46,6 +53,17 @@ export interface DashboardControlResult {
   tenant_id: string;
   bot_active: boolean;
   system_prompt_override: string | null;
+}
+
+export interface TenantListEntry {
+  tenant_id: string;
+  business_name: string;
+  sector: string;
+  product: string;
+  plan: string;
+  whatsapp_phone_number_id: string | null;
+  created_at: string;
+  status: 'active' | 'pending_verification' | 'inactive';
 }
 
 export interface LogEntry {
@@ -85,6 +103,26 @@ export interface HealthResult {
   service: string;
 }
 
+export interface PlatformSettingsPayload {
+  maintenance_mode: boolean;
+  allow_new_registrations: boolean;
+  global_system_alerts: string;
+}
+
+export interface PlatformAnalyticsResult {
+  revenue: number;
+  expenses: number;
+  message_volume: number;
+  active_tenants: number;
+  status: string;
+  metrics: {
+    total_revenue: number;
+    api_costs: number;
+    active_tenants: number;
+    total_messages: number;
+  };
+}
+
 /* ─────────────────────────────────────────────────────────────
    API functions
    ───────────────────────────────────────────────────────────── */
@@ -104,6 +142,54 @@ export async function updateTenantSettings(
   return res.data;
 }
 
+/** GET /api/tenant — mocked list of all tenants (for Master Admin UI) */
+export async function getTenants(): Promise<TenantListEntry[]> {
+  // Simulate network latency for premium feel
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return [
+    {
+      tenant_id: '4cc9eef0-82eb-54ea-9999-desktest9999',
+      business_name: 'Acme Barber Istanbul',
+      sector: 'hairdresser',
+      product: 'desk',
+      plan: 'starter',
+      whatsapp_phone_number_id: 'WABA_PHONE_ID_1001',
+      created_at: '2026-07-10T12:00:00Z',
+      status: 'active',
+    },
+    {
+      tenant_id: '84a33b25-dc76-4743-b3cc-6bc500cb709f',
+      business_name: 'Acme Hair Care & Salon',
+      sector: 'beauty_salon',
+      product: 'desk',
+      plan: 'business',
+      whatsapp_phone_number_id: 'WABA_PHONE_ID_1002',
+      created_at: '2026-07-12T15:30:00Z',
+      status: 'active',
+    },
+    {
+      tenant_id: 'a8f6955c-2a12-4cc1-9ce7-815d4bc5fc41',
+      business_name: 'Luxe Kuaför Bebek',
+      sector: 'hairdresser',
+      product: 'desk',
+      plan: 'premium',
+      whatsapp_phone_number_id: null,
+      created_at: '2026-07-11T09:15:00Z',
+      status: 'pending_verification',
+    },
+    {
+      tenant_id: '92f076d1-d912-4037-a69f-8db3ebdb8de3',
+      business_name: 'Retro Barber Kadıköy',
+      sector: 'restaurant',
+      product: 'desk',
+      plan: 'free',
+      whatsapp_phone_number_id: 'WABA_PHONE_ID_1004',
+      created_at: '2026-07-09T18:45:00Z',
+      status: 'inactive',
+    }
+  ];
+}
+
 /** GET /api/logs/:tenantId — fetch conversation logs */
 export async function getLogs(tenantId: string): Promise<LogsResult> {
   const res = await api.get<LogsResult>(`/logs/${tenantId}`);
@@ -119,6 +205,24 @@ export async function getPlan(tenantId: string): Promise<PlanResult> {
 /** GET /api/health — liveness probe */
 export async function getHealth(): Promise<HealthResult> {
   const res = await api.get<HealthResult>('/health');
+  return res.data;
+}
+
+/** GET /api/platform/settings — fetch global platform settings */
+export async function getPlatformSettings(): Promise<PlatformSettingsPayload> {
+  const res = await api.get<PlatformSettingsPayload>('/platform/settings');
+  return res.data;
+}
+
+/** POST /api/platform/settings — update global platform settings */
+export async function updatePlatformSettings(data: PlatformSettingsPayload): Promise<{ status: string; message: string }> {
+  const res = await api.post<{ status: string; message: string }>('/platform/settings', data);
+  return res.data;
+}
+
+/** GET /api/platform/analytics — fetch global platform analytics */
+export async function getPlatformAnalytics(): Promise<PlatformAnalyticsResult> {
+  const res = await api.get<PlatformAnalyticsResult>('/platform/analytics');
   return res.data;
 }
 

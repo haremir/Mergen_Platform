@@ -34,7 +34,7 @@ from unittest.mock import MagicMock
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 for _p in (
     _ROOT,
     os.path.join(_ROOT, "shared"),
@@ -127,12 +127,18 @@ VALID_PAYLOAD = {
     "faqs":               [{"question": "Randevu iptal edilebilir mi?", "answer": "Evet, 24 saat kalana kadar."}],
     "pricing":            "Haircut: 150 TL, Beard trim: 80 TL",
     "plan":               "starter",
+    "product":            "desk",
+    "sector":             "hairdresser",
+    "persona":            "friendly_energetic",
+    "meta_phone_id":      f"META_ID_{uuid.uuid4().hex[:8].upper()}",
+    "meta_access_token":  None,
 }
 
 resp = client.post("/api/onboarding", json=VALID_PAYLOAD)
 print(f"       HTTP Status: {resp.status_code}")
 assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
 data = resp.json()
+VALID_TENANT_ID = data["tenant_id"]
 
 print()
 print("       Response JSON:")
@@ -145,7 +151,7 @@ assert data["status"] == "pending_verification", f"Expected pending_verification
 assert len(data["tenant_id"]) == 36, "tenant_id should be a UUID-4 string"
 assert data["phone_number_id"] == "MOCK_PHONE_ID_TEST001"
 assert data["knowledge_fields_ingested"] == 7  # mock returns 7
-assert data["persona"] == "desk_receptionist"
+assert data["persona"] == "friendly_energetic"
 assert data["error"] is None
 
 print(f"{PASS} POST /api/onboarding -> 201 Created")
@@ -276,7 +282,7 @@ settings_payload = {
     "bot_active": False,
     "system_prompt_override": "Yeni deneme sistem promptu"
 }
-resp = client.post(f"/api/tenant/{FAKE_TENANT}/settings", json=settings_payload)
+resp = client.post(f"/api/tenant/{VALID_TENANT_ID}/settings", json=settings_payload)
 assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
 settings_data = resp.json()
 assert settings_data["status"] == "success"

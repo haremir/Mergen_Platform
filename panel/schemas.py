@@ -88,9 +88,46 @@ class OnboardingRequest(BaseModel):
         description="Subscription plan slug.",
         examples=["starter", "business", "enterprise"],
     )
+    product: str = Field(
+        default="desk",
+        description="Mergen product code.",
+        examples=["desk"],
+    )
+    sector: str = Field(
+        ...,
+        description="Business sector category.",
+        examples=["hairdresser"],
+    )
+    persona: str = Field(
+        ...,
+        description="Yapay zeka asistanı karakter/persona kodu.",
+        examples=["friendly_energetic"],
+    )
+    meta_phone_id: str = Field(
+        ...,
+        description="Meta cloud API phone number ID.",
+        examples=["104857204857302"],
+    )
+    meta_access_token: Optional[str] = Field(
+        default=None,
+        description="Meta temporary access token override.",
+        examples=["EAAx2..."],
+    )
+    instagram_token: Optional[str] = Field(
+        default=None,
+        description="Instagram graph API token for client page integration.",
+        examples=["IGQVJ..."],
+    )
+    telegram_token: Optional[str] = Field(
+        default=None,
+        description="Telegram bot token for channel webhook integration.",
+        examples=["123456:ABC-def..."],
+    )
 
     @field_validator("business_name", "phone_number", "location", 
-                     "cancellation_policy", "contact_info", mode="before")
+                     "cancellation_policy", "contact_info", "product",
+                     "sector", "persona", "meta_phone_id", "meta_access_token",
+                     "instagram_token", "telegram_token", mode="before")
     @classmethod
     def strip_whitespace(cls, v: Any) -> Any:
         if isinstance(v, str):
@@ -202,3 +239,35 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "7.3.0"
     service: str = "Mergen Panel API"
+
+
+# ---------------------------------------------------------------------------
+# Platform Settings
+# ---------------------------------------------------------------------------
+
+class PlatformSettingsRequest(BaseModel):
+    maintenance_mode: bool = Field(..., description="System-wide maintenance status.")
+    allow_new_registrations: bool = Field(..., description="Enables/disables new tenant registration onboarding.")
+    global_system_alerts: str = Field(..., description="Global notification message for tenants.")
+
+
+class PlatformSettingsResponse(BaseModel):
+    status: str = Field(default="success")
+    message: str = Field(description="Operational status message.")
+    maintenance_mode: bool
+    allow_new_registrations: bool
+    global_system_alerts: str
+
+
+# ---------------------------------------------------------------------------
+# Platform Analytics
+# ---------------------------------------------------------------------------
+
+class PlatformAnalyticsResponse(BaseModel):
+    revenue: float = Field(..., description="Total monthly revenue in Turkish Liras.")
+    expenses: float = Field(..., description="Total LLM and API costs in Turkish Liras.")
+    message_volume: int = Field(..., description="Total count of messages processed.")
+    active_tenants: int = Field(..., description="Total count of active tenants in system.")
+    status: str = Field(default="success")
+    metrics: dict = Field(default={})
+
