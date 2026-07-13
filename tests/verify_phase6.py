@@ -253,7 +253,7 @@ assert result["status"] == "pending_verification", f"Expected pending_verificati
 assert result["phone_number_id"] == "META_PHONE_ID_999"
 assert result["knowledge_fields_ingested"] == len(fields)   # Same as Step 3
 assert result["tenant_id"] == TENANT_ID
-assert result["persona"] == "desk_receptionist"
+assert result["persona"] == "friendly_energetic"
 
 print(f"{PASS} status = 'pending_verification'")
 print(f"{PASS} phone_number_id = '{result['phone_number_id']}'")
@@ -270,7 +270,7 @@ print(f"{PASS} WhatsApp add_phone_number called with correct phone_number and di
 # Verify RAG was called
 mock_rag.ingest_fields.assert_called_once()
 rag_call_fields = mock_rag.ingest_fields.call_args[0][1]   # positional arg 1 = fields
-assert len(rag_call_fields) == len(fields)
+assert len(rag_call_fields) == len(fields) + 1
 print(f"{PASS} RAG index_knowledge_fields called with {len(rag_call_fields)} field(s).")
 
 # Verify tenant was actually stored in TenantManager

@@ -168,6 +168,10 @@ class DeskOnboardingService:
         raw_form_data: Dict[str, Any],
         phone_number: str,
         plan: str = _DESK_DEFAULT_PLAN,
+        sector: str = _DESK_SECTOR,
+        persona: str = "friendly_energetic",
+        meta_phone_id: str = "",
+        meta_access_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Orchestrate the full Desk client onboarding flow.
 
@@ -193,7 +197,7 @@ class DeskOnboardingService:
             "phone_number":              phone_number,
             "phone_number_id":           None,
             "knowledge_fields_ingested": 0,
-            "persona":                   DESK_PERSONA["name"],
+            "persona":                   persona,
             "status":                    "unknown",
             "error":                     None,
         }
@@ -203,10 +207,13 @@ class DeskOnboardingService:
             "DeskOnboardingService.setup_new_client: STEP 1 — validating form data for tenant=%s.",
             tenant_id,
         )
+        form_data = dict(raw_form_data)
+        form_data["persona"] = persona
+
         try:
             knowledge_fields: List[KnowledgeField] = self._validator.validate_and_convert(
                 tenant_id=tenant_id,
-                raw_form_data=raw_form_data,
+                raw_form_data=form_data,
             )
         except DeskValidationError as exc:
             logger.error(
@@ -232,9 +239,9 @@ class DeskOnboardingService:
         tenant = Tenant(
             tenant_id=tenant_id,
             business_name=business_name,
-            sector=_DESK_SECTOR,
+            sector=sector,
             plan=plan,
-            whatsapp_phone_number_id="",   # Filled after WA registration in Step 4
+            whatsapp_phone_number_id=meta_phone_id or "",
             created_at=datetime.now(tz=timezone.utc),
         )
         try:
@@ -288,9 +295,7 @@ class DeskOnboardingService:
 
             # Persist the phone_number_id back onto the tenant record
             try:
-                existing = self._tenant_mgr.get_tenant_by_id(tenant_id)
-                existing.whatsapp_phone_number_id = phone_number_id
-                # In production: UPDATE tenants SET whatsapp_phone_number_id = $1 WHERE tenant_id = $2
+                self._tenant_mgr.update_whatsapp_phone_number_id(tenant_id, phone_number_id)
                 logger.info(
                     "DeskOnboardingService: phone_number_id=%s saved to tenant=%s.",
                     phone_number_id,

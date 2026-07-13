@@ -166,6 +166,24 @@ class TenantManager:
                 logger.exception("Failed to update tenant configuration.")
                 raise e
 
+    def update_whatsapp_phone_number_id(self, tenant_id: str, phone_number_id: str) -> Tenant:
+        """Update a tenant's WhatsApp phone number ID in the database."""
+        with SessionLocal() as session:
+            db_tenant = session.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+            if db_tenant is None:
+                raise TenantNotFoundError(
+                    f"TenantManager.update_whatsapp_phone_number_id: tenant '{tenant_id}' not found."
+                )
+            db_tenant.whatsapp_phone_number_id = phone_number_id
+            try:
+                session.commit()
+                session.refresh(db_tenant)
+                return _db_to_domain(db_tenant)
+            except Exception as e:
+                session.rollback()
+                logger.exception("Failed to update tenant whatsapp_phone_number_id.")
+                raise e
+
     def update_tenant_plan(self, tenant_id: str, new_plan: str) -> Tenant:
         """Upgrade or downgrade a tenant's subscription plan."""
         if new_plan not in self.VALID_PLANS:

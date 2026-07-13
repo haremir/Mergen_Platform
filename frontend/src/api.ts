@@ -27,6 +27,7 @@ export interface OnboardingPayload {
   persona: string;
   meta_phone_id: string;
   meta_access_token?: string;
+  product: string;
 }
 
 export interface OnboardingResult {

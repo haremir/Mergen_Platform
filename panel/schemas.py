@@ -88,9 +88,35 @@ class OnboardingRequest(BaseModel):
         description="Subscription plan slug.",
         examples=["starter", "business", "enterprise"],
     )
+    product: str = Field(
+        default="desk",
+        description="Mergen product code.",
+        examples=["desk"],
+    )
+    sector: str = Field(
+        ...,
+        description="Business sector category.",
+        examples=["hairdresser"],
+    )
+    persona: str = Field(
+        ...,
+        description="Yapay zeka asistanı karakter/persona kodu.",
+        examples=["friendly_energetic"],
+    )
+    meta_phone_id: str = Field(
+        ...,
+        description="Meta cloud API phone number ID.",
+        examples=["104857204857302"],
+    )
+    meta_access_token: Optional[str] = Field(
+        default=None,
+        description="Meta temporary access token override.",
+        examples=["EAAx2..."],
+    )
 
     @field_validator("business_name", "phone_number", "location", 
-                     "cancellation_policy", "contact_info", mode="before")
+                     "cancellation_policy", "contact_info", "product",
+                     "sector", "persona", "meta_phone_id", "meta_access_token", mode="before")
     @classmethod
     def strip_whitespace(cls, v: Any) -> Any:
         if isinstance(v, str):

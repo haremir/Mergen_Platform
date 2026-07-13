@@ -127,6 +127,11 @@ VALID_PAYLOAD = {
     "faqs":               [{"question": "Randevu iptal edilebilir mi?", "answer": "Evet, 24 saat kalana kadar."}],
     "pricing":            "Haircut: 150 TL, Beard trim: 80 TL",
     "plan":               "starter",
+    "product":            "desk",
+    "sector":             "hairdresser",
+    "persona":            "friendly_energetic",
+    "meta_phone_id":      f"META_ID_{uuid.uuid4().hex[:8].upper()}",
+    "meta_access_token":  None,
 }
 
 resp = client.post("/api/onboarding", json=VALID_PAYLOAD)
@@ -146,7 +151,7 @@ assert data["status"] == "pending_verification", f"Expected pending_verification
 assert len(data["tenant_id"]) == 36, "tenant_id should be a UUID-4 string"
 assert data["phone_number_id"] == "MOCK_PHONE_ID_TEST001"
 assert data["knowledge_fields_ingested"] == 7  # mock returns 7
-assert data["persona"] == "desk_receptionist"
+assert data["persona"] == "friendly_energetic"
 assert data["error"] is None
 
 print(f"{PASS} POST /api/onboarding -> 201 Created")
