@@ -75,7 +75,7 @@ from mergen_core.tenant_manager import (  # noqa: E402
     TenantAlreadyExistsError,
     get_tenant_manager,
 )
-from mergen_core.rag_engine import RagEngine  # noqa: E402
+from mergen_core.rag_engine import RagEngine, get_rag_engine  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # WhatsApp package
@@ -148,7 +148,7 @@ class DeskOnboardingService:
     ) -> None:
         self._wa = whatsapp_client
         self._tenant_mgr = tenant_manager or get_tenant_manager()
-        self._rag = rag_engine or RagEngine()
+        self._rag = rag_engine or get_rag_engine()
         self._validator = DeskTemplateValidator()
 
         logger.info(
@@ -172,6 +172,7 @@ class DeskOnboardingService:
         persona: str = "friendly_energetic",
         meta_phone_id: str = "",
         meta_access_token: Optional[str] = None,
+        telegram_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Orchestrate the full Desk client onboarding flow.
 
@@ -243,6 +244,8 @@ class DeskOnboardingService:
             plan=plan,
             whatsapp_phone_number_id=meta_phone_id or "",
             created_at=datetime.now(tz=timezone.utc),
+            persona=persona,
+            telegram_token=telegram_token,
         )
         try:
             self._tenant_mgr.create_tenant(tenant)

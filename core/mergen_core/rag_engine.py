@@ -654,3 +654,24 @@ def build_context_block(fields: List[KnowledgeField]) -> str:
     for f in fields:
         lines.append(f"[{f.field_type}] {f.value}")
     return "\n\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Module-level singleton
+# ---------------------------------------------------------------------------
+
+_rag_engine: Optional[RagEngine] = None
+
+
+def get_rag_engine() -> RagEngine:
+    """Return the process-wide singleton RagEngine (lazy-initialised)."""
+    global _rag_engine
+    if _rag_engine is None:
+        _rag_engine = RagEngine()
+    return _rag_engine
+
+
+def reset_rag_engine(engine: Optional[RagEngine] = None) -> None:
+    """Replace the singleton. Useful in tests to inject a mock engine."""
+    global _rag_engine
+    _rag_engine = engine
