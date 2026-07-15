@@ -21,11 +21,11 @@ import logging
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
-from fastapi import FastAPI, HTTPException, Path, status
+from fastapi import FastAPI, HTTPException, Path, status, Request, Header, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -62,10 +62,13 @@ from panel.schemas import (  # noqa: E402
 
 from mergen_product_desk.onboarding_orchestrator import DeskOnboardingService  # noqa: E402
 from mergen_pkg_whatsapp.client import WhatsAppClient, WhatsAppAPIError  # noqa: E402
-from mergen_core.plan_guard import PLAN_LIMITS  # noqa: E402
+from mergen_pkg_whatsapp.webhook_parser import verify_signature, parse_webhook_payload  # noqa: E402
+from mergen_common.models import OutboundMessage  # noqa: E402
+from mergen_core.plan_guard import PLAN_LIMITS, get_plan_guard  # noqa: E402
 from mergen_core.database import engine, Base, SessionLocal  # noqa: E402
 from mergen_core.tenant_manager import get_tenant_manager, TenantNotFoundError  # noqa: E402
 from mergen_core.db_models import DBPlatformSetting  # noqa: E402
+from mergen_core.llm_orchestrator import process_inbound_message  # noqa: E402
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -96,6 +99,44 @@ try:
     logger.info("Database tables initialized successfully.")
 except Exception:
     logger.exception("Failed to initialize database tables.")
+
+
+@app.on_event("startup")
+def startup_event():
+    """Seed the DBSectorPrompt table on application startup."""
+    logger.info("Running startup event: seeding DBSectorPrompt table.")
+    try:
+        from mergen_core.db_models import DBSectorPrompt
+        from mergen_core.database import SessionLocal
+        with SessionLocal() as session:
+            # Check if any exist
+            count = session.query(DBSectorPrompt).count()
+            if count == 0:
+                defaults = [
+                    DBSectorPrompt(
+                        sector_id="hairdresser",
+                        base_prompt="Sen bir kuaför salonunun ön büro asistanısın. Müşterilere saç kesimi, boyama, bakım hizmetleri ve çalışma saatleri hakkında bilgi vermek, randevuları organize etmekle görevlisin."
+                    ),
+                    DBSectorPrompt(
+                        sector_id="beauty_salon",
+                        base_prompt="Sen bir güzellik merkezinin ön büro asistanısın. Müşterilere cilt bakımı, lazer epilasyon, makyaj, tırnak bakımı hizmetleri ve seans randevuları konusunda yardımcı olmakla görevlisin."
+                    ),
+                    DBSectorPrompt(
+                        sector_id="restaurant",
+                        base_prompt="Sen bir restoranın ön büro asistanısın. Müşterilere menüdeki yemekler, içecekler, alerjen bilgileri, çalışma saatleri hakkında bilgi vermek ve masa rezervasyonlarını yönetmekle görevlisin."
+                    ),
+                    DBSectorPrompt(
+                        sector_id="other",
+                        base_prompt="Sen Mergen Platformu tarafından desteklenen ön büro yapay zeka asistanısın. Müşterilerin sorularını kibar, anlaşılır ve profesyonel bir şekilde yanıtlamakla görevlisin."
+                    ),
+                ]
+                session.add_all(defaults)
+                session.commit()
+                logger.info("Successfully seeded DBSectorPrompt table.")
+            else:
+                logger.info("DBSectorPrompt table already seeded.")
+    except Exception as exc:
+        logger.exception("Failed to seed DBSectorPrompt: %s", exc)
 
 # ---------------------------------------------------------------------------
 # CORS — allow Next.js dev server + any additional origins from env
@@ -227,6 +268,7 @@ def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
         persona=body.persona,
         meta_phone_id=body.meta_phone_id,
         meta_access_token=body.meta_access_token,
+        telegram_token=body.telegram_token,
     )
 
     return OnboardingResponse(
@@ -299,6 +341,9 @@ _MOCK_LOG_TEMPLATES = [
 ]
 
 
+_REAL_MESSAGE_LOGS: List[MessageLogEntry] = []
+
+
 @app.get(
     "/api/logs/{tenant_id}",
     response_model=LogsResponse,
@@ -312,6 +357,9 @@ def get_logs(
     """Return recent conversation log entries for a tenant."""
     now = datetime.now(tz=timezone.utc)
 
+    # Fetch real logs for this tenant
+    real_entries = [log for log in _REAL_MESSAGE_LOGS if log.tenant_id == tenant_id]
+
     entries: List[MessageLogEntry] = []
     for i, (direction, channel, text) in enumerate(_MOCK_LOG_TEMPLATES):
         entries.append(
@@ -322,14 +370,17 @@ def get_logs(
                 channel=channel,
                 direction=direction,
                 text=text,
-                timestamp=now.replace(minute=now.minute - i).isoformat(),
+                timestamp=(now - timedelta(minutes=i)).isoformat(),
             )
         )
 
+    # Prepend real logs to mock logs so they appear first
+    combined = real_entries + entries
+
     return LogsResponse(
         tenant_id=tenant_id,
-        total=len(entries),
-        messages=entries[:limit],
+        total=len(combined),
+        messages=combined[:limit],
     )
 
 
@@ -498,4 +549,271 @@ def get_platform_analytics() -> Dict[str, Any]:
             "total_messages": message_volume
         }
     }
+
+
+# ── Webhook Endpoints (Phase 10 LLM Integration) ───────────────────────────
+
+@app.get(
+    "/webhook/whatsapp",
+    tags=["Webhooks"],
+    summary="Verify WhatsApp webhook connection",
+)
+def verify_whatsapp(
+    hub_mode: Optional[str] = Query(None, alias="hub.mode"),
+    hub_challenge: Optional[str] = Query(None, alias="hub.challenge"),
+    hub_verify_token: Optional[str] = Query(None, alias="hub.verify_token"),
+):
+    """WhatsApp verification endpoint (GET /webhook/whatsapp)."""
+    token = os.getenv("WHATSAPP_VERIFY_TOKEN", "mergen_token")
+    if hub_mode == "subscribe" and hub_verify_token == token:
+        logger.info("WhatsApp webhook verification successful.")
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(hub_challenge)
+    raise HTTPException(status_code=403, detail="Verification failed")
+
+
+async def _async_process_webhook_message(inbound_msg: Any, phone_number_id: str) -> None:
+    """Asynchronous background task to process a WhatsApp message, run LLM, send reply, and log."""
+    try:
+        tm = get_tenant_manager()
+        try:
+            tenant = tm.get_tenant_by_whatsapp_id(phone_number_id)
+            tenant_id = tenant.tenant_id
+        except TenantNotFoundError:
+            logger.error("Webhook processing: No tenant found for phone_number_id=%s", phone_number_id)
+            return
+
+        # Fetch tenant settings (bot_active, system_prompt_override)
+        db_tenant = tm.get_db_tenant_by_id(tenant_id)
+        if not db_tenant.bot_active:
+            logger.info("Webhook processing: Bot is inactive for tenant %s. Message ignored.", tenant_id)
+            return
+
+        # Check PlanGuard circuit breaker & quota before calling the LLM
+        pg = get_plan_guard()
+        if pg.is_circuit_open(tenant_id):
+            logger.warning("PlanGuard: Circuit is open for tenant %s. LLM call blocked.", tenant_id)
+            return
+
+        if not pg.check_and_increment(tenant_id, tenant.plan):
+            logger.warning("PlanGuard: Tenant %s has exceeded monthly message limit.", tenant_id)
+            return
+
+        # Log inbound message dynamically
+        inbound_log = MessageLogEntry(
+            message_id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            sender=inbound_msg.sender,
+            channel="whatsapp",
+            direction="inbound",
+            text=inbound_msg.text,
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+        _REAL_MESSAGE_LOGS.append(inbound_log)
+
+        # Generate response using process_inbound_message (calls OpenRouter)
+        reply_text = await process_inbound_message(tenant_id, inbound_msg.text)
+
+        # Send outbound message
+        platform_token = os.getenv("WHATSAPP_PLATFORM_TOKEN", "mock_platform_token")
+        waba_id = os.getenv("WHATSAPP_WABA_ID", "mock_waba_id")
+        wa_client = WhatsAppClient(platform_token=platform_token, waba_id=waba_id)
+
+        outbound = OutboundMessage(
+            tenant_id=tenant_id,
+            channel="whatsapp",
+            recipient=inbound_msg.sender,
+            text=reply_text
+        )
+
+        try:
+            wa_client.send_message(outbound, phone_number_id)
+            # Reset plan guard failure count on success
+            pg.reset_circuit(tenant_id)
+        except Exception as send_exc:
+            logger.error("Webhook processing: Failed to send WhatsApp message via Meta API: %s", send_exc)
+            pg.track_llm_failure(tenant_id)
+            # We still log the failure response locally for diagnostics
+            reply_text = "Ön büro asistanı şu anda yanıt gönderemiyor."
+
+        # Log outbound reply
+        outbound_log = MessageLogEntry(
+            message_id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            sender="SYSTEM",
+            channel="whatsapp",
+            direction="outbound",
+            text=reply_text,
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+        _REAL_MESSAGE_LOGS.append(outbound_log)
+
+    except Exception as e:
+        logger.error("Error in background webhook processor: %s", e, exc_info=True)
+
+
+@app.post(
+    "/webhook/whatsapp",
+    tags=["Webhooks"],
+    summary="Receive WhatsApp webhook message events",
+)
+async def receive_whatsapp(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
+):
+    """WhatsApp webhook message receiver (POST /webhook/whatsapp)."""
+    payload_bytes = await request.body()
+    payload_json = await request.json()
+
+    # Optional signature validation
+    app_secret = os.getenv("META_APP_SECRET")
+    if app_secret and x_hub_signature_256:
+        sig_valid = verify_signature(payload_bytes, x_hub_signature_256, app_secret)
+        if not sig_valid:
+            logger.warning("WhatsApp Webhook: Invalid signature received.")
+            raise HTTPException(status_code=403, detail="Invalid signature")
+
+    # Parse payload using package utility
+    try:
+        inbound_messages = parse_webhook_payload(payload_json)
+    except Exception as exc:
+        logger.error("WhatsApp Webhook: failed to parse payload: %s", exc)
+        return {"status": "error", "message": "Failed to parse payload"}
+
+    for msg in inbound_messages:
+        # The parser stores metadata.phone_number_id as InboundMessage.tenant_id
+        phone_number_id = msg.tenant_id
+        if msg.text:
+            background_tasks.add_task(_async_process_webhook_message, msg, phone_number_id)
+
+    return {"status": "success", "message": "Webhook processed"}
+
+
+@app.get("/webhooks/whatsapp", tags=["Webhooks"])
+def verify_whatsapp_legacy(
+    hub_mode: Optional[str] = Query(None, alias="hub.mode"),
+    hub_challenge: Optional[str] = Query(None, alias="hub.challenge"),
+    hub_verify_token: Optional[str] = Query(None, alias="hub.verify_token"),
+):
+    return verify_whatsapp(hub_mode, hub_challenge, hub_verify_token)
+
+
+@app.post("/webhooks/whatsapp", tags=["Webhooks"])
+async def receive_whatsapp_legacy(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
+):
+    return await receive_whatsapp(request, background_tasks, x_hub_signature_256)
+
+
+# ── Telegram Webhook Endpoint (Phase 10 pivot) ─────────────────────────────
+
+async def _async_process_telegram_message(tenant_id: str, chat_id: str, text: str) -> None:
+    """Asynchronous background task to process a Telegram message, run LLM, and send reply."""
+    try:
+        tm = get_tenant_manager()
+        try:
+            tenant = tm.get_tenant_by_id(tenant_id)
+        except TenantNotFoundError:
+            logger.error("Telegram Webhook processing: No tenant found for tenant_id=%s", tenant_id)
+            return
+
+        db_tenant = tm.get_db_tenant_by_id(tenant_id)
+        if not db_tenant.bot_active:
+            logger.info("Telegram Webhook processing: Bot is inactive for tenant %s. Message ignored.", tenant_id)
+            return
+
+        # Check PlanGuard circuit breaker & quota before calling the LLM
+        pg = get_plan_guard()
+        if pg.is_circuit_open(tenant_id):
+            logger.warning("PlanGuard: Circuit is open for tenant %s. Telegram LLM call blocked.", tenant_id)
+            return
+
+        if not pg.check_and_increment(tenant_id, tenant.plan):
+            logger.warning("PlanGuard: Tenant %s has exceeded monthly message limit on Telegram.", tenant_id)
+            return
+
+        # Log inbound message dynamically
+        inbound_log = MessageLogEntry(
+            message_id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            sender=chat_id,
+            channel="telegram",
+            direction="inbound",
+            text=text,
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+        _REAL_MESSAGE_LOGS.append(inbound_log)
+
+        # Generate and route reply asynchronously through process_inbound_message with channel="telegram"
+        # Since process_inbound_message has built-in TelegramClient routing when channel="telegram", it handles sending
+        reply_text = await process_inbound_message(
+            tenant_id=tenant_id,
+            user_message=text,
+            channel="telegram",
+            chat_id=chat_id,
+        )
+
+        # Reset plan guard failure count on success
+        pg.reset_circuit(tenant_id)
+
+        # Log outbound reply
+        outbound_log = MessageLogEntry(
+            message_id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            sender="SYSTEM",
+            channel="telegram",
+            direction="outbound",
+            text=reply_text,
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+        _REAL_MESSAGE_LOGS.append(outbound_log)
+
+    except Exception as e:
+        logger.error("Error in background Telegram webhook processor: %s", e, exc_info=True)
+
+
+@app.post(
+    "/webhook/telegram/{tenant_id}",
+    tags=["Webhooks"],
+    summary="Receive Telegram bot webhook updates",
+)
+async def receive_telegram(
+    tenant_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """Telegram webhook receiver (POST /webhook/telegram/{tenant_id})."""
+    try:
+        payload = await request.json()
+        logger.info("POST /webhook/telegram/%s: payload=%s", tenant_id, payload)
+        
+        # Telegram Webhook payload structure:
+        # {
+        #   "update_id": 12345,
+        #   "message": {
+        #     "message_id": 1,
+        #     "from": { "id": 123, "is_bot": false, "first_name": "Alice" },
+        #     "chat": { "id": 123, "type": "private" },
+        #     "date": 1600000000,
+        #     "text": "Hello"
+        #   }
+        # }
+        message = payload.get("message", {})
+        chat = message.get("chat", {})
+        chat_id = str(chat.get("id", ""))
+        text = message.get("text", "")
+
+        if chat_id and text:
+            background_tasks.add_task(_async_process_telegram_message, tenant_id, chat_id, text)
+            return {"status": "success", "message": "Telegram message received and queued"}
+        else:
+            logger.warning("Telegram Webhook: Empty chat_id or text in payload.")
+            return {"status": "ignored", "message": "Missing chat_id or message text"}
+            
+    except Exception as exc:
+        logger.error("Telegram Webhook error: %s", exc)
+        return {"status": "error", "message": str(exc)}
 
