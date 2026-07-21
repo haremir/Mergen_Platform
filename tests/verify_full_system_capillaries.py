@@ -72,9 +72,11 @@ async def run_full_system_test():
     # ──────────────────────────────────────────────────────────────────────────
     print("--- Capillary 1: Database Schema & Seeding ---")
     
-    # Clear prompts table and re-run startup seeder
+    # Clear prompts, test tenant, and plan usage tables for a fresh run
     with SessionLocal() as session:
         session.query(DBSectorPrompt).delete()
+        session.query(DBTenant).filter(DBTenant.id == "c14e1f7a-8fcc-4d33-911e-b8324a35c136").delete()
+        session.query(DBPlanUsage).filter(DBPlanUsage.tenant_id == "c14e1f7a-8fcc-4d33-911e-b8324a35c136").delete()
         session.commit()
     
     startup_event()

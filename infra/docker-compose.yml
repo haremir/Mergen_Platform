@@ -1,0 +1,21 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: mergen_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mergen
+      POSTGRES_PASSWORD: mergen_secret
+      POSTGRES_DB: mergen_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - mergen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mergen -d mergen_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mergen_pgdata:
