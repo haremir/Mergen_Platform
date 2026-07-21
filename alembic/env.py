@@ -61,15 +61,9 @@ try:
 except ImportError:
     pass  # Kâtip paketi opsiyonel; kurulu değilse katip_* tabloları migration'a girmez
 
-from mergen_core.database import Base  # noqa: E402
+from mergen_core.database import Base, DATABASE_URL  # noqa: E402
 
 target_metadata = Base.metadata
-
-# ---------------------------------------------------------------------------
-# DATABASE_URL — .env / ortam değişkeninden oku, varsayılan yok
-# ---------------------------------------------------------------------------
-
-DATABASE_URL: str = os.environ["DATABASE_URL"]
 
 
 # ---------------------------------------------------------------------------
