@@ -152,7 +152,7 @@ class KatipPromptEngine:
             "    <constraint>NEVER use vague or ambiguous words such as 'genellikle' (usually), 'bazı' (some), 'gibi' (like/such as), 'benzer' (similar), 'destekler' (supports), or 'sağlar' (provides).</constraint>",
             "    <constraint>Instead of using 'genellikle', ALWAYS provide concrete numbers or exact ranges (e.g., 'ortalama %3-4 oranında', '3 ile 4 arasında').</constraint>",
             "    <constraint>NEVER use ambiguous pronouns like 'bu', 'şu', 'bunlar', 'onlar' when referring to key concepts. ALWAYS explicitly repeat the exact target keyword or noun.</constraint>",
-            "    <constraint>CRITICAL RULE: Sadece somut verilerle uzman ağzıyla konuş, belirsizlik içeren kelimeleri (bazı, genellikle, gibi) KESİNLİKLE kullanma!</constraint>",
+            "    <constraint>CRITICAL RULE: 'Genellikle', 'bazı', 'gibi', 'benzer', 'yaklaşık' kelimeleri KESİNLİKLE YASAKTIR. Bunların yerine DAİMA net istatistikler, yüzdeler veya 'X ile Y yıl arası' gibi kesin matematiksel aralıklar kullan. Asla tahmini konuşma.</constraint>",
             "  </strict_constraints>",
         ]
 
@@ -176,6 +176,9 @@ class KatipPromptEngine:
             "    <guideline>Article MUST be written in fluent, high-quality, professional Turkish.</guideline>",
             "    <guideline>Each section/subheading MUST start with a 12-15 word direct micro-answer in the very first sentence, followed by detailed elaboration.</guideline>",
             "    <guideline>Target length: 800-1000 WORDS. Minimum 800 WORDS.</guideline>",
+            "    <guideline>Article MUST contain AT LEAST 5 H2 subheadings. Do NOT use fewer.</guideline>",
+            "    <guideline>Each subheading MUST have at least 2-3 detailed paragraphs beneath it. Do NOT superficially cover any section.</guideline>",
+            "    <guideline>Detail procedural steps, material differences, and scientific advantages for each section — do not stay at a surface level.</guideline>",
             "    <guideline>Include a 3-question FAQ (Sık Sorulan Sorular) section at the end without any external outbound links.</guideline>",
             "  </formatting_guidelines>",
             "</system_instructions>"
@@ -208,7 +211,13 @@ class KatipPromptEngine:
 
         # Revizyon Kalıpları Bölümü (RAG Çıktısı)
         if rel_patterns:
-            user_prompt_parts.append("## GEÇMİŞ EDİTÖR DÜZELTME KALIPLARI (BU HATALARI KESİNLİKLE TEKRAR ETME):")
+            user_prompt_parts.append(
+                "## ⚠️ RAG REFERANS KALIPLARI — ZORUNLU UYARI:\n"
+                "DİKKAT: AŞAĞIDAKİ ÖRNEKLER SADECE ÜSLUP VE FORMAT REFERANSIDIR. "
+                "İÇİNDEKİ TIBBİ BİLGİLERİ (SÜRE, FİYAT, MATERYAL, SAYISAL DEĞERLER) "
+                "KESİNLİKLE KOPYALAMA. SADECE İSTENEN KONUNUN GERÇEK TIBBİ VERİLERİNİ KULLAN.\n"
+                "## GEÇMİŞ EDİTÖR DÜZELTME KALIPLARI (BU HATALARI KESİNLİKLE TEKRAR ETME):"
+            )
             for idx, pat in enumerate(rel_patterns, 1):
                 rule_label = getattr(pat, "general_rule", None) or (
                     pat.pattern_tags[0] if getattr(pat, "pattern_tags", None) else "Editör Kuralı"
@@ -233,7 +242,8 @@ class KatipPromptEngine:
             "Doğrudan başlıktaki spesifik soruya odaklan, genel tedavi veya klinik tanıtım şablonu çıkarma. "
             "Her alt başlığın ilk cümlesini 12-15 kelimelik net ve vurucu bir mikro-cevap olarak kur, ardından detaylandır. "
             "Yazı sonunda 3 soruluk SSS (Sık Sorulan Sorular) bölümü ekle. "
-            "Target length: 800-1000 WORDS. Minimum 800 WORDS. En az 800 kelime (WORDS) yazılmalıdır."
+            "Target length: 800-1000 WORDS. Minimum 800 WORDS. En az 800 kelime (WORDS) yazılmalıdır. "
+            "Makale en az 5 H2 alt başlık içermeli, her alt başlık altında en az 2-3 detaylı paragraf bulunmalıdır."
         )
 
         user_prompt = "\n\n".join(user_prompt_parts)
