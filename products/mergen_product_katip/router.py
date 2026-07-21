@@ -36,6 +36,7 @@ from mergen_product_katip.models import (
 )
 from mergen_product_katip.draft_service import generate_draft_for_topic
 from mergen_product_katip.prompt_engine import KatipPromptEngine
+from mergen_product_katip.cms_service import dispatch_cms_publication
 
 logger = logging.getLogger(__name__)
 
@@ -753,6 +754,13 @@ def update_draft_status(
         draft.updated_at = datetime.now(timezone.utc)
         db.commit()
 
+        pub_result = None
+        if body.status == "published":
+            try:
+                pub_result = dispatch_cms_publication(db, tenant_id, draft_id)
+            except Exception as pub_err:
+                logger.warning("CMS yayınlama tetikleme hatası: %s", pub_err)
+
         logger.info(
             "PUT /api/katip/drafts/%s/status: tenant=%s %s→%s",
             draft_id, tenant_id, old_status, body.status,
@@ -762,6 +770,7 @@ def update_draft_status(
             "draft_id": draft_id,
             "previous_status": old_status,
             "new_status": body.status,
+            "publication": pub_result,
         }
     finally:
         db.close()
