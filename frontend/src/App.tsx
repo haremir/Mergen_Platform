@@ -3,7 +3,8 @@ import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import Analytics from './pages/Analytics';
-import { Sparkles, LayoutDashboard, UserCheck, Code, Activity, Settings as SettingsGear, BarChart3 } from 'lucide-react';
+import KatipOverview from './pages/KatipOverview';
+import { Sparkles, LayoutDashboard, UserCheck, Code, Activity, Settings as SettingsGear, BarChart3, FileText } from 'lucide-react';
 
 function Sidebar() {
   const location = useLocation();
@@ -53,6 +54,18 @@ function Sidebar() {
           >
             <LayoutDashboard className="w-5 h-5" />
             Kontrol Paneli
+          </Link>
+
+          <Link
+            to="/katip"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              isActive('/katip')
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            Kâtip AI Modülü
           </Link>
 
           <Link
@@ -108,6 +121,7 @@ export default function App() {
           <Routes>
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/katip" element={<KatipOverview />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="*" element={<Navigate to="/onboarding" replace />} />
