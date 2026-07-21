@@ -19,6 +19,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import axios, { AxiosError } from "axios";
+import ReactMarkdown from "react-markdown";
 
 // ---------------------------------------------------------------------------
 // Sabitler
@@ -37,6 +38,7 @@ function getTenantId(): string {
 interface DraftVersionItem {
   id: string;
   version_number: number;
+  content?: string;
   word_count: number;
   parent_version_id: string | null;
   created_at: string;
@@ -232,10 +234,10 @@ function FeedbackForm({ draftId, latestVersionNumber, onSuccess }: FeedbackFormP
     setError(null);
 
     try {
-      const { data } = await axios.post<FeedbackResponse>(
-        `${API_BASE}/api/katip/drafts/${draftId}/feedback`,
+      const { data } = await axios.post(
+        `${API_BASE}/api/katip/drafts/${draftId}/regenerate`,
         {
-          note: note.trim(),
+          feedback_note: note.trim(),
           author_label: authorLabel.trim() || undefined,
         },
         {
@@ -247,7 +249,13 @@ function FeedbackForm({ draftId, latestVersionNumber, onSuccess }: FeedbackFormP
       );
       setNote("");
       setAuthorLabel("");
-      onSuccess(data);
+      onSuccess({
+        status: data.status,
+        feedback_id: data.feedback_id,
+        draft_id: draftId,
+        source_version_number: data.new_version_number - 1,
+        message: `v${data.new_version_number} taslak versiyonu LLM & RAG motoru ile başarıyla üretildi!`,
+      });
     } catch (err) {
       const ae = err as AxiosError<{ detail: string }>;
       setError(
@@ -438,13 +446,13 @@ export default function DraftEditor() {
 
   function handleSelectVersion(v: DraftVersionItem) {
     setActiveVersionId(v.id);
-    // İçerik sadece latest_version'da tam gelir; diğerleri için ayrı endpoint gerekir.
-    // Bu aşamada sadece en son versiyonun içeriği gösterilir, diğerleri için meta bilgi.
-    if (draft?.latest_version?.id === v.id) {
+    if (v.content) {
+      setDisplayedContent(v.content);
+    } else if (draft?.latest_version?.id === v.id) {
       setDisplayedContent(draft.latest_version.content);
     } else {
       setDisplayedContent(
-        `[v${v.version_number} içeriğini görüntülemek için GET /api/katip/draft-versions/${v.id} endpoint'i gereklidir.]\n\nBu versiyon ${new Date(v.created_at).toLocaleString("tr-TR")} tarihinde oluşturuldu.\nKelime sayısı: ${v.word_count.toLocaleString("tr-TR")}`
+        `[v${v.version_number} içeriği yükleniyor...]\n\nOluşturulma Tarihi: ${new Date(v.created_at).toLocaleString("tr-TR")}\nKelime Sayısı: ${v.word_count.toLocaleString("tr-TR")}`
       );
     }
   }
@@ -654,16 +662,17 @@ export default function DraftEditor() {
               <article
                 className="
                   prose prose-invert prose-slate max-w-none
-                  prose-headings:font-bold prose-headings:text-slate-100
+                  prose-headings:font-bold prose-headings:text-slate-100 prose-headings:tracking-tight
+                  prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
                   prose-p:text-slate-300 prose-p:leading-relaxed
-                  prose-a:text-blue-400
-                  prose-strong:text-slate-100
-                  prose-li:text-slate-300
+                  prose-a:text-blue-400 prose-a:underline hover:prose-a:text-blue-300
+                  prose-strong:text-slate-100 prose-strong:font-semibold
+                  prose-li:text-slate-300 prose-ul:list-disc prose-ol:list-decimal
+                  prose-code:text-amber-300 prose-code:bg-slate-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
                   select-text
                 "
-                style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}
               >
-                {displayedContent}
+                <ReactMarkdown>{displayedContent}</ReactMarkdown>
               </article>
             ) : (
               <div className="flex flex-col items-center justify-center h-64 gap-4">
