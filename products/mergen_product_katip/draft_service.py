@@ -28,6 +28,7 @@ from mergen_core.llm_gateway import get_gateway
 from mergen_product_katip.models import (
     KatipDraft,
     KatipDraftVersion,
+    KatipFeedbackNote,
     KatipGenerationLog,
     KatipTopicQueue,
 )
@@ -225,3 +226,178 @@ def generate_draft_for_topic(
         db.commit()
         logger.exception("Taslak üretimi başarısız oldu (Topic: %s): %s", topic_id, exc)
         raise
+
+
+def revise_existing_draft(
+    db: Session,
+    tenant_id: str,
+    draft_id: str,
+    feedback_text: str,
+    author_label: Optional[str] = None,
+    prompt_engine: Optional[KatipPromptEngine] = None,
+) -> Dict[str, Any]:
+    """
+    Editör revizyon notunu dikkate alarak mevcut taslak için strüktürel ChatML mesaj
+    dizisi ile yeni bir versiyon (v2, v3 ...) üretir.
+
+    Args:
+        db: Sync SQLAlchemy Session
+        tenant_id: Müşteri UUID'si
+        draft_id: KatipDraft UUID'si
+        feedback_text: Editörün revizyon/düzeltme notu
+        author_label: Opsiyonel editör etiketi/imza
+        prompt_engine: İsteğe bağlı KatipPromptEngine örneği
+
+    Returns:
+        {
+            "status": "regenerated",
+            "draft_id": str,
+            "feedback_id": str,
+            "new_version_id": str,
+            "new_version_number": int,
+            "word_count": int,
+            "latency_ms": int,
+        }
+    """
+    if prompt_engine is None:
+        prompt_engine = KatipPromptEngine()
+
+    start_t = time.time()
+
+    # 1. Taslak ve tenant kontrolü
+    draft = (
+        db.query(KatipDraft)
+        .filter(KatipDraft.id == draft_id, KatipDraft.tenant_id == tenant_id)
+        .first()
+    )
+    if not draft:
+        raise ValueError(f"Taslak '{draft_id}' bulunamadı (Tenant: {tenant_id}).")
+
+    # 2. Kaynak (en son) versiyonu bul
+    latest_version = (
+        db.query(KatipDraftVersion)
+        .filter(KatipDraftVersion.draft_id == draft_id)
+        .order_by(KatipDraftVersion.version_number.desc())
+        .first()
+    )
+    if not latest_version:
+        raise ValueError(f"Taslak '{draft_id}' için henüz bir versiyon bulunmuyor.")
+
+    old_draft_content = latest_version.content
+
+    # 3. FeedbackNote kaydı oluştur
+    feedback = KatipFeedbackNote(
+        draft_version_id=latest_version.id,
+        note=feedback_text.strip(),
+        author_label=author_label,
+    )
+    db.add(feedback)
+    db.flush()
+
+    # 4. Konu başlığını ve anahtar kelimeleri çek
+    topic = db.query(KatipTopicQueue).filter(KatipTopicQueue.id == draft.topic_id).first()
+    topic_title = topic.topic_title if topic else "Konu"
+    target_keywords = topic.target_keywords if topic else []
+
+    # 5. Prompt Engine'den System Prompt Al
+    prompt_data = prompt_engine.build_prompt(
+        db=db,
+        tenant_id=tenant_id,
+        topic_title=topic_title,
+        target_keywords=target_keywords,
+        additional_feedback=feedback_text.strip(),
+    )
+    system_prompt = prompt_data["system_prompt"]
+
+    # 6. Strüktürel ChatML Mesaj Dizisi (Array Dict) İnşası
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": (
+                f"Konu: {topic_title}\n\n"
+                f"Önceki Taslağın:\n{old_draft_content}\n\n"
+                f"Bu taslak reddedildi. Editörün Revizyon Notu: {feedback_text.strip()}\n\n"
+                f"GÖREV: Editörün notunu HARFİYEN uygulayarak, başlıktaki spesifik soruyu cevaplayan, "
+                f"en az 800 kelimelik yeni bir versiyon yaz. Eski metni kopyalama."
+            ),
+        },
+    ]
+
+    # 7. LLM Gateway Çağrısı (Array Dict Yapısı ile)
+    gateway = get_gateway()
+    model_name = "qwen/qwen-2.5-32b-instruct"
+
+    try:
+        if hasattr(gateway, "route_messages"):
+            generated_content = gateway.route_messages(
+                messages=messages,
+                tenant_id=tenant_id,
+                temperature=0.65,
+                max_tokens=2048,
+            )
+        elif hasattr(gateway, "route"):
+            generated_content = gateway.route(
+                query=messages[1]["content"],
+                system_prompt=system_prompt,
+                tenant_id=tenant_id,
+                temperature=0.65,
+                max_tokens=2048,
+            )
+        else:
+            raise AttributeError("LLMGateway does not have route or route_messages method")
+    except Exception as llm_err:
+        logger.warning("Revizyon LLM Gateway çağrısı başarısız oldu (%s), revize yedek şablon kullanılıyor.", llm_err)
+        generated_content = (
+            f"# {topic_title}\n\n"
+            f"**Editör Notu Uygulandı:** {feedback_text.strip()[:200]}\n\n"
+            f"{old_draft_content}"
+        )
+
+    latency_ms = int((time.time() - start_t) * 1000)
+    words = len(generated_content.split())
+    full_text = f"=== SYSTEM ===\n{system_prompt}\n\n=== USER ===\n{messages[1]['content']}"
+    prompt_hash = _compute_hash(full_text)
+    new_version_number = latest_version.version_number + 1
+
+    # 8. Yeni DraftVersion (v2+) Oluştur
+    new_version = KatipDraftVersion(
+        draft_id=draft_id,
+        version_number=new_version_number,
+        content=generated_content,
+        word_count=words,
+        parent_version_id=latest_version.id,
+    )
+    db.add(new_version)
+    db.flush()
+
+    # 9. GenerationLog Kaydı Oluştur
+    gen_log = KatipGenerationLog(
+        draft_version_id=new_version.id,
+        feedback_note_id=feedback.id,
+        prompt_hash=prompt_hash,
+        token_count=len(full_text.split()) + words,
+        model_used=model_name,
+        latency_ms=latency_ms,
+    )
+    db.add(gen_log)
+
+    # 10. Taslak Durumunu Güncelle
+    draft.status = "draft"
+    draft.updated_at = _utcnow()
+    db.commit()
+
+    logger.info(
+        "Taslak v%d başarıyla revize edildi! DraftID: %s NewVersionID: %s Kelime: %d Süre: %dms",
+        new_version_number, draft_id, new_version.id, words, latency_ms
+    )
+
+    return {
+        "status": "regenerated",
+        "draft_id": draft_id,
+        "feedback_id": feedback.id,
+        "new_version_id": new_version.id,
+        "new_version_number": new_version_number,
+        "word_count": words,
+        "latency_ms": latency_ms,
+    }
