@@ -118,7 +118,7 @@ def generate_draft_for_topic(
 
         # 3. LLM Gateway Çağrısı (Qwen 2.5)
         gateway = get_gateway()
-        model_name = "qwen/qwen-2.5-32b-instruct"
+        model_name = "qwen/qwen-2.5-72b-instruct"
 
         if hasattr(gateway, "route"):
             generated_content = gateway.route(
@@ -127,6 +127,7 @@ def generate_draft_for_topic(
                 tenant_id=tenant_id,
                 temperature=0.7,
                 max_tokens=2048,
+                model=model_name,
             )
         elif hasattr(gateway, "complete"):
             generated_content = gateway.complete(
@@ -303,7 +304,7 @@ def revise_existing_draft(
 
     # 7. LLM Gateway Çağrısı (Array Dict Yapısı ile)
     gateway = get_gateway()
-    model_name = "qwen/qwen-2.5-32b-instruct"
+    model_name = "qwen/qwen-2.5-72b-instruct"
 
     try:
         if hasattr(gateway, "route_messages"):
@@ -312,6 +313,7 @@ def revise_existing_draft(
                 tenant_id=tenant_id,
                 temperature=0.65,
                 max_tokens=2048,
+                model=model_name,
             )
         elif hasattr(gateway, "route"):
             generated_content = gateway.route(
@@ -320,6 +322,7 @@ def revise_existing_draft(
                 tenant_id=tenant_id,
                 temperature=0.65,
                 max_tokens=2048,
+                model=model_name,
             )
         else:
             raise AttributeError("LLMGateway does not have route or route_messages method")

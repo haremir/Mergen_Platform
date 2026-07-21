@@ -208,6 +208,7 @@ class LLMGateway:
         tenant_id: str = "unknown",
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model: Optional[str] = None,
     ) -> str:
         """Route a query through the three-tier fallback chain."""
         messages = self._build_messages(system_prompt, query)
@@ -216,6 +217,7 @@ class LLMGateway:
             tenant_id=tenant_id,
             temperature=temperature,
             max_tokens=max_tokens,
+            model=model,
         )
 
     def route_messages(
@@ -225,6 +227,7 @@ class LLMGateway:
         tenant_id: str = "unknown",
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model: Optional[str] = None,
     ) -> str:
         """Route a list of OpenAI-formatted messages through the three-tier fallback chain.
 
@@ -265,12 +268,13 @@ class LLMGateway:
 
         # ── Tier 2: OpenRouter ───────────────────────────────────────────────
         if self._or_key:
-            for model in (_OPENROUTER_PRIMARY_MODEL, _OPENROUTER_SECONDARY_MODEL):
+            or_models = [model] if model else [_OPENROUTER_PRIMARY_MODEL, _OPENROUTER_SECONDARY_MODEL]
+            for m in or_models:
                 try:
                     result, usage = self._call_openai_compat(
                         base_url=_OPENROUTER_BASE_URL,
                         api_key=self._or_key,
-                        model=model,
+                        model=m,
                         messages=messages,
                         temperature=temp,
                         max_tokens=mtok,
@@ -282,7 +286,7 @@ class LLMGateway:
                     self._emit_usage(usage, provider="openrouter", tenant_id=tenant_id, query=query_preview)
                     return result
                 except Exception as exc:
-                    err_msg = f"[Tier2/openrouter/{model}] {exc}"
+                    err_msg = f"[Tier2/openrouter/{m}] {exc}"
                     logger.warning("LLMGateway %s — falling through: %s", tenant_id, err_msg)
                     errors.append(err_msg)
         else:
