@@ -88,7 +88,9 @@ class TenantManager:
                 whatsapp_phone_number_id=tenant.whatsapp_phone_number_id or None,
                 created_at=tenant.created_at or datetime.now(timezone.utc),
                 bot_active=True,
-                system_prompt_override=None
+                system_prompt_override=None,
+                persona=tenant.persona or "friendly_energetic",
+                telegram_token=tenant.telegram_token,
             )
             session.add(db_tenant)
             try:
@@ -249,6 +251,8 @@ def _db_to_domain(db_tenant: DBTenant) -> Tenant:
         plan=db_tenant.plan,
         whatsapp_phone_number_id=db_tenant.whatsapp_phone_number_id or "",
         created_at=db_tenant.created_at,
+        persona=db_tenant.persona or "friendly_energetic",
+        telegram_token=db_tenant.telegram_token,
     )
 
 
