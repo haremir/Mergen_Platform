@@ -111,6 +111,7 @@ class TopicsListResponse(BaseModel):
 class DraftVersionItem(BaseModel):
     id: str
     version_number: int
+    content: Optional[str] = None
     word_count: int
     parent_version_id: Optional[str]
     created_at: str
@@ -534,6 +535,7 @@ def get_draft(
             DraftVersionItem(
                 id=v.id,
                 version_number=v.version_number,
+                content=v.content,
                 word_count=v.word_count,
                 parent_version_id=v.parent_version_id,
                 created_at=v.created_at.isoformat(),
