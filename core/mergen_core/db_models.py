@@ -58,3 +58,13 @@ class DBSectorPrompt(Base):
 
     sector_id = Column(String(100), primary_key=True, index=True)
     base_prompt = Column(String(2000), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Kâtip modülü modelleri — Base'e tanıtmak için import yeterli.
+# Base.metadata.create_all(bind=engine) tüm katip_* tablolarını da yaratır.
+# ---------------------------------------------------------------------------
+try:
+    import mergen_product_katip.models  # noqa: F401  # registers all Katip ORM classes
+except ImportError:
+    pass  # Kâtip paketi kurulu değilse platform sessizce devam eder

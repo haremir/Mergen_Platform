@@ -94,9 +94,29 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # Database Initialization
 # ---------------------------------------------------------------------------
+
+# 1. pgvector extension — PostgreSQL ortamında gerekli, SQLite'da skip edilir.
+try:
+    from sqlalchemy import text as _sql_text
+    with engine.connect() as _conn:
+        _conn.execute(_sql_text("CREATE EXTENSION IF NOT EXISTS vector;"))
+        _conn.commit()
+    logger.info("pgvector extension ensured.")
+except Exception as _pgvec_err:
+    # SQLite veya pgvector kurulu değil — geliştirme ortamında normaldir.
+    logger.debug("pgvector extension skipped: %s", _pgvec_err)
+
+# 2. Kâtip modellerini Base'e yükle (db_models.py'daki import yeterli,
+#    burada garantilemek için tekrar import ediyoruz).
+try:
+    import mergen_product_katip.models  # noqa: F401
+except ImportError:
+    logger.debug("mergen_product_katip not found, Katip tables will not be created.")
+
+# 3. Tüm tablolar (core + katip_*) tek seferde yarat.
 try:
     Base.metadata.create_all(bind=engine)
-    logger.info("Database tables initialized successfully.")
+    logger.info("Database tables initialized successfully (core + katip).")
 except Exception:
     logger.exception("Failed to initialize database tables.")
 
