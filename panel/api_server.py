@@ -97,8 +97,8 @@ app = FastAPI(
 
 @app.on_event("startup")
 def startup_event():
-    """Seed the DBSectorPrompt table on application startup."""
-    logger.info("Running startup event: seeding DBSectorPrompt table.")
+    """Seed the DBSectorPrompt table and start Katip autonomous scheduler on application startup."""
+    logger.info("Running startup event: seeding DBSectorPrompt table & launching Katip scheduler.")
     try:
         from mergen_core.db_models import DBSectorPrompt
         from mergen_core.database import SessionLocal
@@ -131,6 +131,28 @@ def startup_event():
                 logger.info("DBSectorPrompt table already seeded.")
     except Exception as exc:
         logger.exception("Failed to seed DBSectorPrompt: %s", exc)
+
+    # Mergen Kâtip Otonom Zamanlayıcısını Başlat
+    try:
+        from mergen_product_katip.scheduler import get_katip_scheduler
+        scheduler = get_katip_scheduler()
+        scheduler.start()
+        logger.info("Mergen Kâtip otonom zamanlayıcısı başarıyla başlatıldı.")
+    except Exception as _sch_err:
+        logger.warning("Katip otonom zamanlayıcı başlatılamadı: %s", _sch_err)
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    """Stop Katip autonomous scheduler on application shutdown."""
+    try:
+        from mergen_product_katip.scheduler import get_katip_scheduler
+        scheduler = get_katip_scheduler()
+        scheduler.stop()
+        logger.info("Mergen Kâtip otonom zamanlayıcısı durduruldu.")
+    except Exception as _sch_err:
+        logger.warning("Katip zamanlayıcı durdurma hatası: %s", _sch_err)
+
 
 # ---------------------------------------------------------------------------
 # CORS — allow Next.js dev server + any additional origins from env
