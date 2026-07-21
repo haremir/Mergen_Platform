@@ -91,14 +91,8 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ---------------------------------------------------------------------------
-# Database Initialization
-# ---------------------------------------------------------------------------
-try:
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables initialized successfully.")
-except Exception:
-    logger.exception("Failed to initialize database tables.")
+
+
 
 
 @app.on_event("startup")
@@ -146,6 +140,9 @@ _default_origins = [
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    # Kâtip editör frontend (frontend_katip/ dev server)
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 _extra_origins = [
     o.strip()
@@ -816,4 +813,15 @@ async def receive_telegram(
     except Exception as exc:
         logger.error("Telegram Webhook error: %s", exc)
         return {"status": "error", "message": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Kâtip Modülü Router
+# ---------------------------------------------------------------------------
+try:
+    from mergen_product_katip.router import router as katip_router  # noqa: E402
+    app.include_router(katip_router, prefix="/api/katip")
+    logger.info("Kâtip router mounted at /api/katip")
+except ImportError as _katip_err:
+    logger.warning("Kâtip router could not be loaded: %s", _katip_err)
 
