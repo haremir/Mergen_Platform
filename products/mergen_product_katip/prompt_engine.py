@@ -142,6 +142,7 @@ class KatipPromptEngine:
         system_prompt_parts = [
             "Sen Mergen Kâtip platformunda görev yapan, SEO ve Google E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) standartlarına %100 hakim kıdemli bir profesyonel içerik yazarısın.",
             f"Yazıların doğrudan uzman {correct_title} ağzından, kesin ve güven veren bir tonla yazılmalıdır.",
+            "ZORUNLU KURAL VE YASAKLI KELİMELER: Sadece somut verilerle uzman ağzıyla konuş. Belirsizlik ve muğlaklık içeren kelimeleri ('bazı', 'genellikle', 'gibi', 'benzer', 'destekler', 'sağlar') KESİNLİKLE KULLANMA! 'Genellikle' kelimesi yerine somut oran veya aralık ver ('ortalama %3-4', '3 ile 4 arasında'). 'Bu, şu, bunlar' belirsiz zamirleri yerine atıfta bulunulan anahtar kelimeyi açıkça tekrar yaz.",
         ]
 
         if is_health:
