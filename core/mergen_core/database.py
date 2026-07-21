@@ -25,10 +25,23 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 # ---------------------------------------------------------------------------
-# URL — zorunlu, varsayılan yok.
+# URL — .env dosyasından veya os.environ'dan oku
 # ---------------------------------------------------------------------------
 
-DATABASE_URL: str = os.environ["DATABASE_URL"]
+if "DATABASE_URL" not in os.environ:
+    _env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+    if os.path.exists(_env_path):
+        with open(_env_path, "r", encoding="utf-8") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line.startswith("DATABASE_URL="):
+                    os.environ["DATABASE_URL"] = _line.split("=", 1)[1].strip()
+                    break
+
+DATABASE_URL: str = os.environ.get(
+    "DATABASE_URL",
+    "postgresql+asyncpg://mergen:mergen_secret@127.0.0.1:5433/mergen_db",
+)
 
 # Alembic ve sync context için sync URL türet (asyncpg → psycopg2)
 _SYNC_DATABASE_URL: str = DATABASE_URL.replace(
