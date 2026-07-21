@@ -25,10 +25,11 @@ import ReactMarkdown from "react-markdown";
 // Sabitler
 // ---------------------------------------------------------------------------
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000";
 
 function getTenantId(): string {
-  return localStorage.getItem("katip_tenant_id") ?? "";
+  const val = localStorage.getItem("katip_tenant_id");
+  return (val && val.trim()) ? val.trim() : "pilot-dental-clinic-01";
 }
 
 // ---------------------------------------------------------------------------
