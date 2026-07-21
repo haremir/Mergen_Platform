@@ -43,7 +43,13 @@ export default function Onboarding() {
   const [plan, setPlan] = useState('starter');
   const [sector, setSector] = useState('hairdresser');
   const [persona, setPersona] = useState('friendly_energetic');
-  const [product, setProduct] = useState('desk');
+  const [product, setProduct] = useState('katip');
+
+  // Katip-specific fields
+  const [wpUrl, setWpUrl] = useState('');
+  const [wpUsername, setWpUsername] = useState('');
+  const [wpAppPassword, setWpAppPassword] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
 
   // Dynamic lists for FAQs and Services
   const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([
@@ -109,18 +115,18 @@ export default function Onboarding() {
       business_name: businessName,
       phone_number: phoneNumber,
       business_hours: businessHours,
-      location: location,
-      cancellation_policy: cancellationPolicy,
-      contact_info: contactInfo,
-      services: cleanedServices,
+      location: location || "Belirtilmedi",
+      cancellation_policy: cancellationPolicy || "Standard İptal Politikası",
+      contact_info: contactInfo || phoneNumber,
+      services: cleanedServices.length ? cleanedServices : [{ name: "Standart Hizmet", price: "0 TL", description: "Varsayılan" }],
       faqs: cleanedFaqs,
-      pricing: pricing,
-      plan: plan,
-      sector: sector,
-      persona: persona,
-      meta_phone_id: metaPhoneId,
+      pricing: pricing || undefined,
+      plan,
+      sector,
+      persona,
+      meta_phone_id: metaPhoneId || `KATIP_META_${Date.now().toString(36)}`,
       meta_access_token: metaAccessToken || undefined,
-      product: product,
+      product,
       instagram_token: useInstagram ? instagramToken || undefined : undefined,
       telegram_token: useTelegram ? telegramToken || undefined : undefined
     };
@@ -170,33 +176,82 @@ export default function Onboarding() {
       {!result ? (
         <form onSubmit={handleSubmit} className="space-y-8">
           
-          {/* Card 1: Business Identity & Meta API Integration */}
+          {/* Card 0: Ürün Seçimi */}
           <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-blue-500 rounded-xl p-8 shadow-xl space-y-6">
             <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+              <Sparkles className="w-5 h-5 text-blue-500" />
+              <h2 className="text-lg font-semibold tracking-tight text-white">Mergen Ürün ve Paket Seçimi *</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <button
+                type="button"
+                onClick={() => setProduct("katip")}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  product === "katip"
+                    ? "bg-blue-600/15 border-blue-500 text-white shadow-lg shadow-blue-900/30"
+                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                }`}
+              >
+                <div className="font-bold text-sm text-blue-400 mb-1">Mergen Kâtip</div>
+                <div className="text-xs text-slate-400">YMYL Uyumlu AI Blog & İçerik Üretim Motoru</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setProduct("desk")}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  product === "desk"
+                    ? "bg-blue-600/15 border-blue-500 text-white shadow-lg shadow-blue-900/30"
+                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                }`}
+              >
+                <div className="font-bold text-sm text-indigo-400 mb-1">Mergen Desk</div>
+                <div className="text-xs text-slate-400">WhatsApp & Omnichannel Masa/Rezervasyon Botu</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setProduct("all")}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  product === "all"
+                    ? "bg-blue-600/15 border-blue-500 text-white shadow-lg shadow-blue-900/30"
+                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                }`}
+              >
+                <div className="font-bold text-sm text-emerald-400 mb-1">Multi-Product</div>
+                <div className="text-xs text-slate-400">Desk + Kâtip Tüm Yapay Zeka Ürünleri</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Card 1: Business Identity & Contact */}
+          <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-indigo-500 rounded-xl p-8 shadow-xl space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
               <Building2 className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-white">Çok Kanallı (Omnichannel) API Entegrasyonu</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-white">İşletme Kimliği ve İletişim</h2>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Business Name */}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  İşletme Adı *
+                  İşletme / Ajans Adı *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Örn: Acme Kuaför Salonu"
+                  placeholder="Örn: Acme Medya & Diş Kliniği"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
 
-              {/* WhatsApp Phone Number */}
+              {/* Phone Number */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  WhatsApp Telefon Numarası *
+                  İletişim Telefon Numarası *
                 </label>
                 <input
                   type="text"
@@ -208,20 +263,22 @@ export default function Onboarding() {
                 />
               </div>
 
-              {/* Meta Phone Number ID */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Meta Phone Number ID *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Örn: 104857204857302"
-                  value={metaPhoneId}
-                  onChange={(e) => setMetaPhoneId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
+              {/* Meta Phone Number ID (Shown for Desk or All) */}
+              {product !== "katip" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    Meta Phone Number ID *
+                  </label>
+                  <input
+                    type="text"
+                    required={product !== "katip"}
+                    placeholder="Örn: 104857204857302"
+                    value={metaPhoneId}
+                    onChange={(e) => setMetaPhoneId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              )}
 
               {/* Meta Access Token (Optional) */}
               <div className="sm:col-span-2">

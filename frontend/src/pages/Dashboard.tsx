@@ -217,18 +217,22 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-blue-500 rounded-xl p-5 shadow-lg space-y-1">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Toplam Kayıtlı Müşteri</span>
           <span className="text-3xl font-bold text-white block">{totalCount}</span>
         </div>
-        <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-emerald-500 rounded-xl p-5 shadow-lg space-y-1">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Aktif Yapay Zeka Asistanı</span>
-          <span className="text-3xl font-bold text-white block">{activeCount} / {totalCount}</span>
+        <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-indigo-500 rounded-xl p-5 shadow-lg space-y-1">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Mergen Desk (Omnichannel)</span>
+          <span className="text-3xl font-bold text-indigo-400 block">{tenants.filter(t => t.product === 'desk' || t.product === 'all').length}</span>
         </div>
-        <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-amber-500 rounded-xl p-5 shadow-lg space-y-1">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Onay Bekleyen İşletme</span>
-          <span className="text-3xl font-bold text-white block">{pendingCount}</span>
+        <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-purple-500 rounded-xl p-5 shadow-lg space-y-1">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Mergen Kâtip (AI Content)</span>
+          <span className="text-3xl font-bold text-purple-400 block">{tenants.filter(t => t.product === 'katip' || t.product === 'all').length}</span>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 border-l-4 border-l-emerald-500 rounded-xl p-5 shadow-lg space-y-1">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Aktif Sistemler</span>
+          <span className="text-3xl font-bold text-white block">{activeCount} / {totalCount}</span>
         </div>
       </div>
 
@@ -279,7 +283,9 @@ export default function Dashboard() {
               className="bg-slate-950 border border-slate-700 text-xs text-slate-300 px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
             >
               <option value="">Ürün: Tümü</option>
-              <option value="desk">Desk</option>
+              <option value="desk">Mergen Desk</option>
+              <option value="katip">Mergen Kâtip</option>
+              <option value="all">Multi-Product</option>
             </select>
           </div>
 
