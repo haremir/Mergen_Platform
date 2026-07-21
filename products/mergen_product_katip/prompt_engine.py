@@ -147,7 +147,7 @@ class KatipPromptEngine:
             "  </role>",
             "  <strict_constraints>",
             "    <constraint>CRITICAL INTENT RULE: DO NOT output a generic treatment template. You MUST answer the SPECIFIC question asked in the topic title directly.</constraint>",
-            "    <constraint>Target length: 600-650 WORDS. Minimum 800 WORDS.</constraint>",
+            "    <constraint>Target length: 800-1000 WORDS. Minimum 800 WORDS.</constraint>",
             "    <constraint>Always speak with expert authority using concrete data, specific ratios, or exact numeric ranges.</constraint>",
             "    <constraint>NEVER use vague or ambiguous words such as 'genellikle' (usually), 'bazı' (some), 'gibi' (like/such as), 'benzer' (similar), 'destekler' (supports), or 'sağlar' (provides).</constraint>",
             "    <constraint>Instead of using 'genellikle', ALWAYS provide concrete numbers or exact ranges (e.g., 'ortalama %3-4 oranında', '3 ile 4 arasında').</constraint>",
@@ -175,7 +175,7 @@ class KatipPromptEngine:
             "  <formatting_guidelines>",
             "    <guideline>Article MUST be written in fluent, high-quality, professional Turkish.</guideline>",
             "    <guideline>Each section/subheading MUST start with a 12-15 word direct micro-answer in the very first sentence, followed by detailed elaboration.</guideline>",
-            "    <guideline>Target length: 600-650 WORDS. Minimum 800 WORDS.</guideline>",
+            "    <guideline>Target length: 800-1000 WORDS. Minimum 800 WORDS.</guideline>",
             "    <guideline>Include a 3-question FAQ (Sık Sorulan Sorular) section at the end without any external outbound links.</guideline>",
             "  </formatting_guidelines>",
             "</system_instructions>"
@@ -233,7 +233,7 @@ class KatipPromptEngine:
             "Doğrudan başlıktaki spesifik soruya odaklan, genel tedavi veya klinik tanıtım şablonu çıkarma. "
             "Her alt başlığın ilk cümlesini 12-15 kelimelik net ve vurucu bir mikro-cevap olarak kur, ardından detaylandır. "
             "Yazı sonunda 3 soruluk SSS (Sık Sorulan Sorular) bölümü ekle. "
-            "Target length: 600-650 WORDS. Minimum 800 WORDS. En az 800 kelime (WORDS) yazılmalıdır."
+            "Target length: 800-1000 WORDS. Minimum 800 WORDS. En az 800 kelime (WORDS) yazılmalıdır."
         )
 
         user_prompt = "\n\n".join(user_prompt_parts)
