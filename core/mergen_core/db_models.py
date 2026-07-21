@@ -27,6 +27,8 @@ class DBTenant(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     bot_active = Column(Boolean, default=True, nullable=False)
     system_prompt_override = Column(String(1000), nullable=True)
+    persona = Column(String(100), default="friendly_energetic", nullable=False)
+    telegram_token = Column(String(100), nullable=True)
 
 
 class DBPlanUsage(Base):
@@ -47,3 +49,12 @@ class DBPlatformSetting(Base):
 
     key = Column(String(100), primary_key=True)
     value = Column(String(255), nullable=False)
+
+
+class DBSectorPrompt(Base):
+    """Database model for storing sector-specific base prompts."""
+
+    __tablename__ = "sector_prompts"
+
+    sector_id = Column(String(100), primary_key=True, index=True)
+    base_prompt = Column(String(2000), nullable=False)

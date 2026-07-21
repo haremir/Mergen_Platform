@@ -183,6 +183,8 @@ class Tenant:
     plan: str
     whatsapp_phone_number_id: str
     created_at: datetime
+    persona: str = "friendly_energetic"
+    telegram_token: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

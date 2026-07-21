@@ -3,7 +3,8 @@
 # RAG pipeline, and cross-tenant shared business logic all live here.
 
 from mergen_core.llm_gateway import LLMGateway, UsageRecord, get_gateway, reset_gateway
-from mergen_core.rag_engine import RagEngine, FaissVectorStore, QdrantVectorStore, embed, build_context_block
+from mergen_core.llm_orchestrator import process_inbound_message
+from mergen_core.rag_engine import RagEngine, FaissVectorStore, QdrantVectorStore, embed, build_context_block, get_rag_engine, reset_rag_engine
 from mergen_core.tenant_manager import TenantManager, TenantNotFoundError, TenantAlreadyExistsError, get_tenant_manager, reset_tenant_manager
 from mergen_core.plan_guard import PlanGuard, PLAN_LIMITS, get_plan_guard, reset_plan_guard
 from mergen_core.prompt_engine import PromptEngine, get_prompt_engine, reset_prompt_engine
@@ -15,12 +16,16 @@ __all__ = [
     "UsageRecord",
     "get_gateway",
     "reset_gateway",
+    # LLM Orchestrator
+    "process_inbound_message",
     # RAG Engine
     "RagEngine",
     "FaissVectorStore",
     "QdrantVectorStore",
     "embed",
     "build_context_block",
+    "get_rag_engine",
+    "reset_rag_engine",
     # Tenant Manager (Phase 3)
     "TenantManager",
     "TenantNotFoundError",
