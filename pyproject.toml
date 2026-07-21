@@ -14,6 +14,8 @@ dependencies = [
     "httpx2>=0.28.0",
     "sqlalchemy>=2.0.51",
     "psycopg2-binary>=2.9.12",
+    "alembic>=1.16.5",
+    "asyncpg>=0.31.0",
 ]
 
 [tool.uv]

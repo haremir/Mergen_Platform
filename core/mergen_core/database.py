@@ -2,8 +2,15 @@
 mergen_core.database
 ~~~~~~~~~~~~~~~~~~~~
 
-Database initialization and session management using SQLAlchemy.
-Defaults to local SQLite but is fully compatible with PostgreSQL.
+Async PostgreSQL bağlantısı — SQLAlchemy 2.x + asyncpg.
+
+DATABASE_URL ortam değişkeni postgresql+asyncpg:// şemasıyla verilmelidir.
+Örnek:
+    postgresql+asyncpg://mergen:mergen_secret@localhost:5432/mergen_db
+
+Sync SessionLocal yalnızca Alembic env.py ve panel/api_server.py'daki
+legacy sync endpoint'leri için korunmuştur. Yeni kod async_session_factory
+kullanmalıdır.
 
 Author: Mergen Platform -- Core Team
 """
@@ -11,36 +18,66 @@ Author: Mergen Platform -- Core Team
 from __future__ import annotations
 
 import os
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# Default to local SQLite for zero-setup development, support override for PG/Supabase
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./mergen_local.db")
 
-# SQLite needs check_same_thread=False for async/multithreaded access
-connect_args = {}
-if DATABASE_URL.startswith("sqlite"):
-    connect_args["check_same_thread"] = False
+# ---------------------------------------------------------------------------
+# URL — zorunlu, varsayılan yok.
+# ---------------------------------------------------------------------------
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+DATABASE_URL: str = os.environ["DATABASE_URL"]
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Alembic ve sync context için sync URL türet (asyncpg → psycopg2)
+_SYNC_DATABASE_URL: str = DATABASE_URL.replace(
+    "postgresql+asyncpg://", "postgresql+psycopg2://"
+)
 
-Base = declarative_base()
 
-# Simple dynamic migration to add persona and telegram_token columns if missing
-try:
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE tenants ADD COLUMN persona VARCHAR(100) DEFAULT 'friendly_energetic'"))
-            conn.commit()
-        except Exception:
-            pass
-        try:
-            conn.execute(text("ALTER TABLE tenants ADD COLUMN telegram_token VARCHAR(100) NULL"))
-            conn.commit()
-        except Exception:
-            pass
-except Exception:
+# ---------------------------------------------------------------------------
+# Declarative Base — tüm ORM modelleri bu Base'den türer.
+# ---------------------------------------------------------------------------
+
+class Base(DeclarativeBase):
     pass
+
+
+# ---------------------------------------------------------------------------
+# Async engine — uygulama runtime'ı için
+# ---------------------------------------------------------------------------
+
+async_engine: AsyncEngine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+)
+
+async_session_factory: sessionmaker[AsyncSession] = sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
+
+# ---------------------------------------------------------------------------
+# Sync engine — Alembic migration ve legacy sync endpoint'leri için
+# ---------------------------------------------------------------------------
+
+engine = create_engine(
+    _SYNC_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+)
+
+SessionLocal: sessionmaker[Session] = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+)
