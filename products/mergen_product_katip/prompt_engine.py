@@ -133,26 +133,52 @@ class KatipPromptEngine:
         rel_patterns = self._find_relevant_patterns(db, tenant_id, topic_title, self.max_revision_patterns)
         rel_articles = self._find_relevant_articles(db, tenant_id, topic_title, self.max_example_articles)
 
-        # 3. Sistem Promptu İnşası
-        sector_info = rules.get("sector_exceptions", {})
-        is_health = sector_info.get("health_sector", False)
-        cta_allowed = sector_info.get("cta_allowed", True)
-        correct_title = sector_info.get("correct_title", "uzman")
+        # 3. Sistem Promptu İnşası (English XML Format)
+        sector_name = rules.get("sector_exceptions", {}).get("sector", "general")
+        is_health = rules.get("sector_exceptions", {}).get("health_sector", False)
+        cta_allowed = rules.get("sector_exceptions", {}).get("cta_allowed", True)
+        correct_title = rules.get("sector_exceptions", {}).get("correct_title", "uzman")
 
         system_prompt_parts = [
-            "Sen Mergen Kâtip platformunda görev yapan, SEO ve Google E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) standartlarına %100 hakim kıdemli bir profesyonel içerik yazarısın.",
-            f"Yazıların doğrudan uzman {correct_title} ağzından, kesin ve güven veren bir tonla yazılmalıdır.",
-            "ZORUNLU KURAL VE YASAKLI KELİMELER: Sadece somut verilerle uzman ağzıyla konuş. Belirsizlik ve muğlaklık içeren kelimeleri ('bazı', 'genellikle', 'gibi', 'benzer', 'destekler', 'sağlar') KESİNLİKLE KULLANMA! 'Genellikle' kelimesi yerine somut oran veya aralık ver ('ortalama %3-4', '3 ile 4 arasında'). 'Bu, şu, bunlar' belirsiz zamirleri yerine atıfta bulunulan anahtar kelimeyi açıkça tekrar yaz.",
+            "<system_instructions>",
+            "  <role>",
+            f"    You are a senior professional content writer on the Mergen Kâtip platform. You craft articles with 100% adherence to Google E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness) and SEO standards.",
+            f"    Your persona is an expert {correct_title} speaking directly, authoritatively, and with absolute professional confidence.",
+            "  </role>",
+            "  <strict_constraints>",
+            "    <constraint>Always speak with expert authority using concrete data, specific ratios, or exact numeric ranges.</constraint>",
+            "    <constraint>NEVER use vague or ambiguous words such as 'genellikle' (usually), 'bazı' (some), 'gibi' (like/such as), 'benzer' (similar), 'destekler' (supports), or 'sağlar' (provides).</constraint>",
+            "    <constraint>Instead of using 'genellikle', ALWAYS provide concrete numbers or exact ranges (e.g., 'ortalama %3-4 oranında', '3 ile 4 arasında').</constraint>",
+            "    <constraint>NEVER use ambiguous pronouns like 'bu', 'şu', 'bunlar', 'onlar' when referring to key concepts. ALWAYS explicitly repeat the exact target keyword or noun.</constraint>",
+            "  </strict_constraints>",
         ]
 
         if is_health:
-            system_prompt_parts.append(
-                "ÖNEMLİ (SAĞLIK SEKTÖRÜ İSTİSNASI): Sağlık mevzuatı gereği yazıda 'doktor' kelimesi yerine kesinlikle 'diş hekimi' kullanılmalıdır. Asla kanıtlanmamış üstünlük iddiaları ('en iyi', 'garantili', 'kesin çözüm') ve eyleme çağrı (CTA) CÜMLELERİ KULLANILMAMALIDIR!"
-            )
+            system_prompt_parts.extend([
+                f"  <sector_rules sector='{sector_name}'>",
+                f"    <rule>HEALTHCARE COMPLIANCE: Use the exact title '{correct_title}' instead of generic 'doktor'.</rule>",
+                "    <rule>NO PROHIBITED CLAIMS: Never use unverified superiority adjectives such as 'en iyi' (the best), 'garantili' (guaranteed), or 'kesin çözüm' (absolute cure).</rule>",
+                "    <rule>NO CALL-TO-ACTION (CTA): Do NOT include any promotional CTA sentences or aggressive marketing pitches.</rule>",
+                "  </sector_rules>",
+            ])
         elif not cta_allowed:
-            system_prompt_parts.append("ÖNEMLİ: Bu sektörde CTA (eyleme çağrı) cümleleri kullanmak yasaktır.")
+            system_prompt_parts.extend([
+                f"  <sector_rules sector='{sector_name}'>",
+                "    <rule>NO CALL-TO-ACTION (CTA): Do NOT include any promotional CTA sentences.</rule>",
+                "  </sector_rules>",
+            ])
 
-        system_prompt = "\n\n".join(system_prompt_parts)
+        system_prompt_parts.extend([
+            "  <formatting_guidelines>",
+            "    <guideline>Article MUST be written in fluent, high-quality, professional Turkish.</guideline>",
+            "    <guideline>Each section/subheading MUST start with a 12-15 word direct micro-answer in the very first sentence, followed by detailed elaboration.</guideline>",
+            "    <guideline>Target length: approximately 600-650 words (minimum 400+ words).</guideline>",
+            "    <guideline>Include a 3-question FAQ (Sık Sorulan Sorular) section at the end without any external outbound links.</guideline>",
+            "  </formatting_guidelines>",
+            "</system_instructions>"
+        ])
+
+        system_prompt = "\n".join(system_prompt_parts)
 
         # 4. Kullanıcı Promptu (User Prompt) İnşası
         user_prompt_parts = [
