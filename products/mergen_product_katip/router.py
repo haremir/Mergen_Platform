@@ -34,10 +34,15 @@ from mergen_product_katip.models import (
     KatipGenerationLog,
     KatipBrandGuide,
 )
+from mergen_product_katip.draft_service import generate_draft_for_topic
+from mergen_product_katip.prompt_engine import KatipPromptEngine
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Kâtip"])
+
+# Singleton prompt engine — model her request'te yüklenmez
+_prompt_engine = KatipPromptEngine()
 
 
 # ---------------------------------------------------------------------------
@@ -64,14 +69,17 @@ def _resolve_tenant(tenant_id: str) -> str:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="X-Tenant-ID header zorunludur.",
         )
+    tid = tenant_id.strip()
     try:
-        get_tenant_manager().get_tenant(tenant_id.strip())
+        result = get_tenant_manager().get_tenant_by_id(tid)
+        if result is None:
+            raise TenantNotFoundError(tid)
     except TenantNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Tenant '{tenant_id}' bulunamadı.",
+            detail=f"Tenant '{tid}' bulunamadı.",
         )
-    return tenant_id.strip()
+    return tid
 
 
 # ---------------------------------------------------------------------------
@@ -148,9 +156,225 @@ class TopicCreateResponse(BaseModel):
     topic_title: str
 
 
+class GenerateDraftRequest(BaseModel):
+    topic_id: str = Field(..., description="Kuyruktaki konunun UUID'si")
+
+
+class GenerateDraftResponse(BaseModel):
+    status: str
+    draft_id: str
+    version_id: str
+    version_number: int
+    word_count: int
+    model_used: str
+    latency_ms: int
+    token_count: int
+
+
+class RegenerateRequest(BaseModel):
+    feedback_note: str = Field(..., min_length=5, max_length=4000, description="Editörün revizyon notu (yeni versiyon için)")
+    author_label: Optional[str] = Field(default=None, max_length=100)
+
+
+class RegenerateResponse(BaseModel):
+    status: str
+    draft_id: str
+    feedback_id: str
+    new_version_id: str
+    new_version_number: int
+    word_count: int
+    latency_ms: int
+
+
 # ---------------------------------------------------------------------------
-# Endpoint: GET /topics — Konu kuyruğunu listele
+# Endpoint: POST /drafts/generate — Yeni taslak üret (v1)
 # ---------------------------------------------------------------------------
+
+@router.post(
+    "/drafts/generate",
+    response_model=GenerateDraftResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Konu kuyruğundaki bir konu için v1 taslak üret",
+    description=(
+        "Belirtilen topic_id'ye ait konuyu alarak Prompt Engine + RAG + LLM Gateway "
+        "üzerinden ilk taslağı (v1) üretir ve veritabanına kaydeder. "
+        "Konu zaten işlenmişse idempotent yanıt döner."
+    ),
+)
+def generate_draft(
+    body: GenerateDraftRequest,
+    x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
+) -> GenerateDraftResponse:
+    tenant_id = _resolve_tenant(x_tenant_id)
+    db = _get_db()
+    try:
+        result = generate_draft_for_topic(
+            db=db,
+            tenant_id=tenant_id,
+            topic_id=body.topic_id,
+            prompt_engine=_prompt_engine,
+        )
+        return GenerateDraftResponse(
+            status=result["status"],
+            draft_id=result["draft_id"],
+            version_id=result["version_id"],
+            version_number=result.get("version_number", 1),
+            word_count=result.get("word_count", 0),
+            model_used=result.get("model_used", "unknown"),
+            latency_ms=result.get("latency_ms", 0),
+            token_count=result.get("token_count", 0),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.exception("POST /api/katip/drafts/generate HATA: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Endpoint: POST /drafts/{draft_id}/regenerate — Feedback ile yeni versiyon üret (v2+)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/drafts/{draft_id}/regenerate",
+    response_model=RegenerateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Editör notu ile yeni taslak versiyonu üret (v2+)",
+    description=(
+        "Editörün girdiği revizyon notunu dikkate alarak mevcut son versiyonu temel alıp "
+        "yeni bir versiyon (v2, v3 …) üretir. FeedbackNote kaydı oluşturulur, "
+        "ardından LLM Gateway çağrılır ve yeni DraftVersion DB'ye yazılır."
+    ),
+)
+def regenerate_draft(
+    body: RegenerateRequest,
+    draft_id: str = Path(..., description="Taslak UUID'si"),
+    x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
+) -> RegenerateResponse:
+    import hashlib, time as _time
+    from mergen_core.llm_gateway import get_gateway
+
+    tenant_id = _resolve_tenant(x_tenant_id)
+    db = _get_db()
+    try:
+        # 1. Taslak ve tenant kontrolü
+        draft = (
+            db.query(KatipDraft)
+            .filter(KatipDraft.id == draft_id, KatipDraft.tenant_id == tenant_id)
+            .first()
+        )
+        if not draft:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Taslak '{draft_id}' bulunamadı.")
+
+        # 2. Kaynak versiyonu bul
+        latest_version = (
+            db.query(KatipDraftVersion)
+            .filter(KatipDraftVersion.draft_id == draft_id)
+            .order_by(KatipDraftVersion.version_number.desc())
+            .first()
+        )
+        if not latest_version:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Henüz bir versiyon yok; önce /generate çağrısı yapılmalı.")
+
+        # 3. FeedbackNote kaydı oluştur
+        feedback = KatipFeedbackNote(
+            draft_version_id=latest_version.id,
+            note=body.feedback_note.strip(),
+            author_label=body.author_label,
+        )
+        db.add(feedback)
+        db.flush()
+
+        # 4. Konuyu bul (prompt için)
+        topic = db.query(KatipTopicQueue).filter(KatipTopicQueue.id == draft.topic_id).first()
+        topic_title = topic.topic_title if topic else "Konu"
+        target_keywords = topic.target_keywords if topic else []
+
+        # 5. Prompt Engine ile yeni prompt inşa et (feedback notu enjekte edilir)
+        start_t = _time.time()
+        prompt_data = _prompt_engine.build_prompt(
+            db=db,
+            tenant_id=tenant_id,
+            topic_title=topic_title,
+            target_keywords=target_keywords,
+            additional_feedback=body.feedback_note.strip(),
+        )
+        sys_prompt = prompt_data["system_prompt"]
+        usr_prompt = prompt_data["user_prompt"]
+        full_text = prompt_data["full_prompt_text"]
+
+        # 6. LLM Gateway Çağrısı
+        gateway = get_gateway()
+        model_name = "qwen/qwen-2.5-32b-instruct"
+        try:
+            generated_content = gateway.route(
+                query=usr_prompt,
+                system_prompt=sys_prompt,
+                tenant_id=tenant_id,
+                temperature=0.65,
+                max_tokens=2048,
+            )
+        except Exception as llm_err:
+            logger.warning("Regenerate LLM hatası (%s), revize şablon kullanılıyor.", llm_err)
+            generated_content = (
+                f"# {topic_title}\n\n"
+                f"**Editör Notu Uygulandı:** {body.feedback_note[:200]}\n\n"
+                f"{latest_version.content}"
+            )
+
+        latency_ms = int((_time.time() - start_t) * 1000)
+        words = len(generated_content.split())
+        prompt_hash = hashlib.sha256(full_text.encode()).hexdigest()
+        new_version_number = latest_version.version_number + 1
+
+        # 7. Yeni DraftVersion oluştur
+        new_version = KatipDraftVersion(
+            draft_id=draft_id,
+            version_number=new_version_number,
+            content=generated_content,
+            word_count=words,
+            parent_version_id=latest_version.id,
+        )
+        db.add(new_version)
+        db.flush()
+
+        # 8. GenerationLog kaydı
+        gen_log = KatipGenerationLog(
+            draft_version_id=new_version.id,
+            feedback_note_id=feedback.id,
+            prompt_hash=prompt_hash,
+            token_count=len(full_text.split()) + words,
+            model_used=model_name,
+            latency_ms=latency_ms,
+        )
+        db.add(gen_log)
+
+        # 9. Draft durumunu güncelle
+        from datetime import datetime, timezone
+        draft.status = "draft"
+        draft.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+        logger.info(
+            "POST /api/katip/drafts/%s/regenerate: tenant=%s v%d→v%d latency=%dms",
+            draft_id, tenant_id, latest_version.version_number, new_version_number, latency_ms,
+        )
+        return RegenerateResponse(
+            status="regenerated",
+            draft_id=draft_id,
+            feedback_id=feedback.id,
+            new_version_id=new_version.id,
+            new_version_number=new_version_number,
+            word_count=words,
+            latency_ms=latency_ms,
+        )
+    finally:
+        db.close()
+
+
+
 
 @router.get(
     "/topics",
