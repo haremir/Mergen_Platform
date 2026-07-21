@@ -63,7 +63,7 @@ def _get_db() -> Session:
 def _resolve_tenant(tenant_id: str) -> str:
     """
     X-Tenant-ID'yi tenant_manager üzerinden doğrula.
-    Bulunamazsa 404, boşsa 400 fırlatır.
+    Bulunamazsa otomatik olarak yeni tenant oluşturur ve Katip verilerini initialize eder.
     """
     if not tenant_id or not tenant_id.strip():
         raise HTTPException(
@@ -71,15 +71,46 @@ def _resolve_tenant(tenant_id: str) -> str:
             detail="X-Tenant-ID header zorunludur.",
         )
     tid = tenant_id.strip()
+    tm = get_tenant_manager()
     try:
-        result = get_tenant_manager().get_tenant_by_id(tid)
+        result = tm.get_tenant_by_id(tid)
         if result is None:
-            raise TenantNotFoundError(tid)
-    except TenantNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Tenant '{tid}' bulunamadı.",
-        )
+            # Otomatik tenant oluştur
+            tm.create_tenant(
+                tenant_id=tid,
+                business_name=f"Ajans / İşletme {tid}",
+                sector="other",
+                product="katip",
+            )
+            # KatipBrandGuide ve ilk başlangıç konusunu ekle
+            db = SessionLocal()
+            try:
+                bg = db.query(KatipBrandGuide).filter(KatipBrandGuide.tenant_id == tid).first()
+                if not bg:
+                    bg = KatipBrandGuide(
+                        tenant_id=tid,
+                        sector="other",
+                        target_audience=f"{tid} Hedef Kitlesi",
+                        rules_json={
+                            "tone": "friendly_energetic",
+                            "forbidden_words": ["genellikle", "bazı", "gibi", "benzer"],
+                            "sector_notes": f"{tid} için otomatik Kâtip yayınlama kuralları.",
+                        },
+                    )
+                    db.add(bg)
+                    topic1 = KatipTopicQueue(
+                        tenant_id=tid,
+                        topic_title=f"{tid} - İlk Otomatik Blog ve İçerik Rehberi",
+                        target_keywords=["rehber", "kalite", "otonomi"],
+                        priority=8,
+                        status="pending",
+                    )
+                    db.add(topic1)
+                    db.commit()
+            finally:
+                db.close()
+    except Exception as exc:
+        logger.warning("_resolve_tenant auto-provision warning for tenant '%s': %s", tid, exc)
     return tid
 
 
@@ -376,6 +407,20 @@ def regenerate_draft(
         db.close()
 
 
+
+
+@router.get(
+    "/tenants",
+    status_code=status.HTTP_200_OK,
+    summary="Kâtip sistemindeki tüm kayıtlı kiracı/ajans listesini getir",
+)
+def get_katip_tenants() -> Dict[str, Any]:
+    tm = get_tenant_manager()
+    tenants = tm.list_tenants()
+    return {
+        "total": len(tenants),
+        "items": tenants,
+    }
 
 
 @router.get(

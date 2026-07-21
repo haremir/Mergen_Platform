@@ -103,8 +103,8 @@ class OnboardingRequest(BaseModel):
         description="Yapay zeka asistanı karakter/persona kodu.",
         examples=["friendly_energetic"],
     )
-    meta_phone_id: str = Field(
-        ...,
+    meta_phone_id: Optional[str] = Field(
+        default=None,
         description="Meta cloud API phone number ID.",
         examples=["104857204857302"],
     )

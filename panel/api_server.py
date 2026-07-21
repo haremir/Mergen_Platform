@@ -276,6 +276,8 @@ def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
         body.phone_number,
     )
 
+    meta_phone_id = body.meta_phone_id or f"KATIP_META_{tenant_id[:8]}"
+
     service = _get_onboarding_service_with_overrides()
     result  = service.setup_new_client(
         tenant_id=tenant_id,
@@ -285,10 +287,47 @@ def create_onboarding(body: OnboardingRequest) -> OnboardingResponse:
         plan=body.plan or "starter",
         sector=body.sector,
         persona=body.persona,
-        meta_phone_id=body.meta_phone_id,
+        meta_phone_id=meta_phone_id,
         meta_access_token=body.meta_access_token,
         telegram_token=body.telegram_token,
     )
+
+    # Katip veya multi-product seçildiyse KatipBrandGuide ve KatipTopicQueue auto-provision et
+    if body.product in ("katip", "all"):
+        try:
+            with SessionLocal() as db_session:
+                from mergen_product_katip.models import KatipBrandGuide, KatipTopicQueue
+                bg = KatipBrandGuide(
+                    tenant_id=tenant_id,
+                    sector=body.sector,
+                    target_audience=f"{body.business_name} Müşterileri",
+                    rules_json={
+                        "tone": body.persona,
+                        "forbidden_words": ["genellikle", "bazı", "gibi", "benzer"],
+                        "sector_notes": f"{body.business_name} için otomatik Kâtip yayınlama kuralları.",
+                    },
+                )
+                db_session.add(bg)
+
+                topic1 = KatipTopicQueue(
+                    tenant_id=tenant_id,
+                    topic_title=f"{body.business_name} Hizmetleri ve Hizmet Standartları Rehberi",
+                    target_keywords=[body.sector, "rehber", "hizmetler"],
+                    priority=8,
+                    status="pending",
+                )
+                topic2 = KatipTopicQueue(
+                    tenant_id=tenant_id,
+                    topic_title=f"Sektörde Neden {body.business_name} Tercih Edilmeli?",
+                    target_keywords=[body.sector, "uzmanlık", "kalite"],
+                    priority=6,
+                    status="pending",
+                )
+                db_session.add_all([topic1, topic2])
+                db_session.commit()
+                logger.info("KatipBrandGuide & KatipTopicQueue auto-provisioned for tenant %s", tenant_id)
+        except Exception as _katip_init_err:
+            logger.warning("Katip auto-provisioning warning: %s", _katip_init_err)
 
     return OnboardingResponse(
         status=result.get("status", "unknown"),
