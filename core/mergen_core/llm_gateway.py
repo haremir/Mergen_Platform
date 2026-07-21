@@ -205,14 +205,30 @@ class LLMGateway:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> str:
-        """Route a query through the three-tier fallback chain.
+        """Route a query through the three-tier fallback chain."""
+        messages = self._build_messages(system_prompt, query)
+        return self.route_messages(
+            messages=messages,
+            tenant_id=tenant_id,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    def route_messages(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        tenant_id: str = "unknown",
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        """Route a list of OpenAI-formatted messages through the three-tier fallback chain.
 
         Args:
-            query:         User message text.
-            system_prompt: System context injected before the conversation.
-            tenant_id:     UUID of the calling tenant — used for cost tracking.
-            temperature:   Override per-call temperature (default: gateway default).
-            max_tokens:    Override per-call max_tokens (default: gateway default).
+            messages:    List of message dicts (e.g., [{"role": "system", ...}, {"role": "user", ...}]).
+            tenant_id:   UUID of the calling tenant — used for cost tracking.
+            temperature: Override per-call temperature (default: gateway default).
+            max_tokens:  Override per-call max_tokens (default: gateway default).
 
         Returns:
             LLM completion string.
@@ -222,8 +238,8 @@ class LLMGateway:
         """
         temp = temperature if temperature is not None else self._temperature
         mtok = max_tokens or self._max_tokens
-        messages = self._build_messages(system_prompt, query)
         errors: List[str] = []
+        query_preview = messages[-1]["content"] if messages else ""
 
         # ── Tier 1: Local ────────────────────────────────────────────────────
         if self._local_url:
@@ -236,7 +252,7 @@ class LLMGateway:
                     temperature=temp,
                     max_tokens=mtok,
                 )
-                self._emit_usage(usage, provider="local", tenant_id=tenant_id, query=query)
+                self._emit_usage(usage, provider="local", tenant_id=tenant_id, query=query_preview)
                 return result
             except Exception as exc:
                 err_msg = f"[Tier1/local] {exc}"
@@ -259,7 +275,7 @@ class LLMGateway:
                             "X-Title": "Mergen Platform",
                         },
                     )
-                    self._emit_usage(usage, provider="openrouter", tenant_id=tenant_id, query=query)
+                    self._emit_usage(usage, provider="openrouter", tenant_id=tenant_id, query=query_preview)
                     return result
                 except Exception as exc:
                     err_msg = f"[Tier2/openrouter/{model}] {exc}"
@@ -280,7 +296,7 @@ class LLMGateway:
                         temperature=temp,
                         max_tokens=mtok,
                     )
-                    self._emit_usage(usage, provider="groq", tenant_id=tenant_id, query=query)
+                    self._emit_usage(usage, provider="groq", tenant_id=tenant_id, query=query_preview)
                     return result
                 except Exception as exc:
                     err_msg = f"[Tier3/groq/{model}] {exc}"
