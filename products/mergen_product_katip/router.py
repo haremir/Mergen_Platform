@@ -69,14 +69,17 @@ def _resolve_tenant(tenant_id: str) -> str:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="X-Tenant-ID header zorunludur.",
         )
+    tid = tenant_id.strip()
     try:
-        get_tenant_manager().get_tenant(tenant_id.strip())
+        result = get_tenant_manager().get_tenant_by_id(tid)
+        if result is None:
+            raise TenantNotFoundError(tid)
     except TenantNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Tenant '{tenant_id}' bulunamadı.",
+            detail=f"Tenant '{tid}' bulunamadı.",
         )
-    return tenant_id.strip()
+    return tid
 
 
 # ---------------------------------------------------------------------------
