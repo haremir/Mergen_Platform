@@ -19,6 +19,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import axios, { AxiosError } from "axios";
+import ReactMarkdown from "react-markdown";
 
 // ---------------------------------------------------------------------------
 // Sabitler
@@ -661,16 +662,17 @@ export default function DraftEditor() {
               <article
                 className="
                   prose prose-invert prose-slate max-w-none
-                  prose-headings:font-bold prose-headings:text-slate-100
+                  prose-headings:font-bold prose-headings:text-slate-100 prose-headings:tracking-tight
+                  prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
                   prose-p:text-slate-300 prose-p:leading-relaxed
-                  prose-a:text-blue-400
-                  prose-strong:text-slate-100
-                  prose-li:text-slate-300
+                  prose-a:text-blue-400 prose-a:underline hover:prose-a:text-blue-300
+                  prose-strong:text-slate-100 prose-strong:font-semibold
+                  prose-li:text-slate-300 prose-ul:list-disc prose-ol:list-decimal
+                  prose-code:text-amber-300 prose-code:bg-slate-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
                   select-text
                 "
-                style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}
               >
-                {displayedContent}
+                <ReactMarkdown>{displayedContent}</ReactMarkdown>
               </article>
             ) : (
               <div className="flex flex-col items-center justify-center h-64 gap-4">
