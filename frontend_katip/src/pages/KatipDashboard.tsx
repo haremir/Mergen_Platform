@@ -15,13 +15,13 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios, { AxiosError } from "axios";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000";
 
 function getTenantId(): string {
   return localStorage.getItem("katip_tenant_id") ?? "pilot-dental-clinic-01";
 }
 
-function setTenantId(id: str): void {
+function setTenantId(id: string): void {
   localStorage.setItem("katip_tenant_id", id.trim());
 }
 
@@ -131,6 +131,23 @@ export default function KatipDashboard() {
   const [currentTenant, setCurrentTenant] = useState<string>(getTenantId());
   const [tenantInput, setTenantInput] = useState<string>(getTenantId());
   const [isEditingTenant, setIsEditingTenant] = useState(false);
+  const [registeredTenants, setRegisteredTenants] = useState<{ tenant_id: string; business_name: string }[]>([]);
+
+  // Registered Tenants List Fetch
+  const fetchRegisteredTenants = useCallback(async () => {
+    try {
+      const { data } = await axios.get<{ items: { tenant_id: string; business_name: string }[] }>(
+        `${API_BASE}/api/katip/tenants`
+      );
+      setRegisteredTenants(data.items ?? []);
+    } catch (_e) {
+      console.log("Katip tenants fetch warning", _e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRegisteredTenants();
+  }, [fetchRegisteredTenants]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"topics" | "drafts">("topics");
@@ -307,10 +324,38 @@ export default function KatipDashboard() {
           <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
-          {isEditingTenant ? (
+          <span className="text-xs text-slate-400 font-semibold">Aktif Müşteri / Ajans:</span>
+          
+          <select
+            value={currentTenant}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "__custom__") {
+                setIsEditingTenant(true);
+              } else {
+                setTenantId(val);
+                setCurrentTenant(val);
+                setTenantInput(val);
+                setIsEditingTenant(false);
+                showNotify("success", `Müşteri "${val}" olarak değiştirildi.`);
+              }
+            }}
+            className="bg-slate-900 border border-slate-600 rounded-lg px-2.5 py-1 text-xs text-blue-300 font-mono font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+          >
+            {registeredTenants.map((t) => (
+              <option key={t.tenant_id} value={t.tenant_id}>
+                {t.business_name} ({t.tenant_id})
+              </option>
+            ))}
+            <option value="pilot-dental-clinic-01">Pilot Diş Kliniği (pilot-dental-clinic-01)</option>
+            <option value="__custom__">+ Elle Manuel Müşteri ID Yaz...</option>
+          </select>
+
+          {isEditingTenant && (
             <div className="flex items-center gap-2">
               <input
                 type="text"
+                placeholder="Örn: dumedan-ajans-1"
                 value={tenantInput}
                 onChange={(e) => setTenantInput(e.target.value)}
                 className="bg-slate-900 border border-slate-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
@@ -320,17 +365,6 @@ export default function KatipDashboard() {
                 className="px-2 py-0.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-500"
               >
                 Kaydet
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Müşteri:</span>
-              <span className="text-xs font-mono font-semibold text-blue-300">{currentTenant}</span>
-              <button
-                onClick={() => setIsEditingTenant(true)}
-                className="text-slate-500 hover:text-slate-300 text-xs underline ml-1"
-              >
-                Değiştir
               </button>
             </div>
           )}
