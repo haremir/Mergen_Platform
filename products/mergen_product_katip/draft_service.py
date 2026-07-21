@@ -116,49 +116,26 @@ def generate_draft_for_topic(
         usr_prompt = prompt_data["user_prompt"]
         full_text = prompt_data["full_prompt_text"]
 
-        # 3. LLM Gateway Çağrısı (Qwen 2.5 / fallback)
+        # 3. LLM Gateway Çağrısı (Qwen 2.5)
         gateway = get_gateway()
         model_name = "qwen/qwen-2.5-32b-instruct"
 
-        try:
-            if hasattr(gateway, "route"):
-                generated_content = gateway.route(
-                    query=usr_prompt,
-                    system_prompt=sys_prompt,
-                    tenant_id=tenant_id,
-                    temperature=0.7,
-                    max_tokens=2048,
-                )
-            elif hasattr(gateway, "complete"):
-                generated_content = gateway.complete(
-                    prompt=usr_prompt,
-                    system_prompt=sys_prompt,
-                    model=model_name,
-                )
-            else:
-                raise AttributeError("LLMGateway does not have route or complete method")
-        except Exception as llm_err:
-            logger.warning("LLM Gateway çağrısı başarısız oldu (%s), yedek şablon kullanılıyor.", llm_err)
-            # Yedek kaliteli üretim (API key yoksa veya kota bittiyse sistem çökmez)
-            generated_content = (
-                f"# {topic.topic_title}\n\n"
-                f"{topic.topic_title}, ağız ve diş sağlığında estetik ve fonksiyonel konfor sağlayan modern bir uygulamadır. "
-                "Uzman diş hekimi kontrolünde yapılan değerlendirme ile hastaya en uygun tedavi planı belirlenir.\n\n"
-                "## Tedavi Süreci Nasıl İlerler?\n"
-                "Tedavi süreci ilk muayene, dijital planlama ve uygulama aşamalarından oluşur. "
-                "İşlem sırasında lokal anestezi kullanıldığı için herhangi bir acı veya ağrı hissedilmez.\n\n"
-                "## Avantajları Nelerdir?\n"
-                "- Doğal diş dokusu korunur.\n"
-                "- Uzun ömürlü ve estetik sonuçlar elde edilir.\n"
-                "- Çiğneme fonksiyonu iyileştirilir.\n\n"
-                "## Sık Sorulan Sorular\n\n"
-                "### 1. Tedavi ne kadar sürer?\n"
-                "Tedavi süresi vakaya göre 3 ile 7 gün arasında değişiklik göstermektedir.\n\n"
-                "### 2. İşlem sonrası dikkat edilmesi gerekenler nelerdir?\n"
-                "İlk 24 saat sıcak gıdalardan kaçınılmalı ve ağız hijyenine dikkat edilmelidir.\n\n"
-                "### 3. Fiyatlar neye göre belirlenir?\n"
-                "Fiyatlar uygulanacak materyal kalitesi ve işlem yapılacak diş sayısına göre diş hekiminizce belirlenir."
+        if hasattr(gateway, "route"):
+            generated_content = gateway.route(
+                query=usr_prompt,
+                system_prompt=sys_prompt,
+                tenant_id=tenant_id,
+                temperature=0.7,
+                max_tokens=2048,
             )
+        elif hasattr(gateway, "complete"):
+            generated_content = gateway.complete(
+                prompt=usr_prompt,
+                system_prompt=sys_prompt,
+                model=model_name,
+            )
+        else:
+            raise AttributeError("LLMGateway does not have route or complete method")
 
         latency_ms = int((time.time() - start_time) * 1000)
         words = len(generated_content.split())
@@ -346,13 +323,12 @@ def revise_existing_draft(
             )
         else:
             raise AttributeError("LLMGateway does not have route or route_messages method")
-    except Exception as llm_err:
-        logger.warning("Revizyon LLM Gateway çağrısı başarısız oldu (%s), revize yedek şablon kullanılıyor.", llm_err)
-        generated_content = (
-            f"# {topic_title}\n\n"
-            f"**Editör Notu Uygulandı:** {feedback_text.strip()[:200]}\n\n"
-            f"{old_draft_content}"
-        )
+    except Exception as exc:
+        db.rollback()
+        draft.status = "failed"
+        db.commit()
+        logger.error("Revizyon LLM Gateway çağrısı başarısız oldu", exc_info=True)
+        raise
 
     latency_ms = int((time.time() - start_t) * 1000)
     words = len(generated_content.split())

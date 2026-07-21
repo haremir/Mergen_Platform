@@ -305,10 +305,12 @@ class LLMGateway:
         else:
             logger.info("LLMGateway: GROQ_API_KEY not set — skipping Tier 3.")
 
-        raise RuntimeError(
+        err_detail = (
             f"LLMGateway: all tiers exhausted for tenant '{tenant_id}'. "
             f"Errors: {'; '.join(errors)}"
         )
+        logger.error(err_detail, exc_info=True)
+        raise RuntimeError(err_detail)
 
     def last_usage(self) -> Optional[UsageRecord]:
         """Returns the UsageRecord from the most recent ``route()`` call."""
