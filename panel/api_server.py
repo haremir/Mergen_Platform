@@ -25,6 +25,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Path, status, Request, Header, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse

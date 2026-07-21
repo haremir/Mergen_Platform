@@ -59,6 +59,10 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import httpx
+from dotenv import load_dotenv
+
+# Load env vars from .env file (if present)
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
