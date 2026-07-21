@@ -226,4 +226,53 @@ export async function getPlatformAnalytics(): Promise<PlatformAnalyticsResult> {
   return res.data;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Kâtip Product API Functions
+   ───────────────────────────────────────────────────────────── */
+export interface KatipTopicSummary {
+  id: string;
+  tenant_id: string;
+  topic_title: string;
+  target_keywords: string[] | null;
+  status: string;
+  priority: number;
+  created_at: string;
+}
+
+export interface KatipTopicsResponse {
+  tenant_id: string;
+  total: number;
+  items: KatipTopicSummary[];
+}
+
+export interface KatipDraftSummary {
+  draft_id: string;
+  topic_id: string;
+  tenant_id: string;
+  status: string;
+  latest_version_number: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KatipDraftsResponse {
+  tenant_id: string;
+  total: number;
+  items: KatipDraftSummary[];
+}
+
+export async function getKatipTopics(tenantId: string): Promise<KatipTopicsResponse> {
+  const res = await api.get<KatipTopicsResponse>('/katip/topics', {
+    headers: { 'X-Tenant-ID': tenantId },
+  });
+  return res.data;
+}
+
+export async function getKatipDrafts(tenantId: string): Promise<KatipDraftsResponse> {
+  const res = await api.get<KatipDraftsResponse>('/katip/drafts', {
+    headers: { 'X-Tenant-ID': tenantId },
+  });
+  return res.data;
+}
+
 export default api;
