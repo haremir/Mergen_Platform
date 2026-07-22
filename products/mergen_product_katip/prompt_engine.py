@@ -153,6 +153,10 @@ class KatipPromptEngine:
             "    <constraint>Instead of using 'genellikle', ALWAYS provide concrete numbers or exact ranges (e.g., 'ortalama %3-4 oranında', '3 ile 4 arasında').</constraint>",
             "    <constraint>NEVER use ambiguous pronouns like 'bu', 'şu', 'bunlar', 'onlar' when referring to key concepts. ALWAYS explicitly repeat the exact target keyword or noun.</constraint>",
             "    <constraint>CRITICAL RULE: 'Genellikle', 'bazı', 'gibi', 'benzer', 'yaklaşık' kelimeleri KESİNLİKLE YASAKTIR. Bunların yerine DAİMA net istatistikler, yüzdeler veya 'X ile Y yıl arası' gibi kesin matematiksel aralıklar kullan. Asla tahmini konuşma.</constraint>",
+            "    <constraint>CRITICAL INTENT RULE: Yazının İLK PARAGRAFININ İLK CÜMLESİ, başlıktaki sorunun DİREKT, NET ve KISA cevabı olmak ZORUNDADIR. Lafı uzatmak, dolandırmak veya '... sorusu sıkça merak edilir' gibi boş girişler yapmak YASAKTIR.</constraint>",
+            "    <constraint>CRITICAL RULE: Yabancı dil sızıntısı YASAKTIR. 'Regular', 'steps', 'siguientes' gibi İngilizce veya diğer dillerden kelimeler KESİNLİKLE kullanılamaz. Metin %100 saf, hatasız ve doğal Türkçe olmalıdır.</constraint>",
+            "    <constraint>CRITICAL RULE: Sen bir kimya sözlüğü veya Vikipedi kanalı değilsin! Materyalleri veya terimleri açıklarken 'Amalgam: İki nokta üst üste...' deyip sözlük tanımı YAPMA. Sadece 'Amalgam, kompozit ve porselen gibi materyaller tercih edilebilir' şeklinde doğal, akıcı bir cümle içinde geçir.</constraint>",
+            "    <constraint>CRITICAL RULE: Okuyucu sayfadan kısa, öz ve net bilgi alarak tatmin olmuş şekilde ayrılmalıdır. Sırf kelime sayısını doldurmak için boş laf kalabalığı (fluff) yapma, kullanıcı niyetine (User Intent) odaklan.</constraint>",
             "  </strict_constraints>",
         ]
 
