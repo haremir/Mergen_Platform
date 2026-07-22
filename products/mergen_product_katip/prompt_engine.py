@@ -133,7 +133,7 @@ class KatipPromptEngine:
         rel_patterns = self._find_relevant_patterns(db, tenant_id, topic_title, self.max_revision_patterns)
         rel_articles = self._find_relevant_articles(db, tenant_id, topic_title, self.max_example_articles)
 
-        # 3. Sistem Promptu İnşası (English XML Format)
+        # 3. Sistem Promptu İnşası (Türkçe XML Formatı)
         sector_name = rules.get("sector_exceptions", {}).get("sector", "general")
         is_health = rules.get("sector_exceptions", {}).get("health_sector", False)
         cta_allowed = rules.get("sector_exceptions", {}).get("cta_allowed", True)
@@ -142,48 +142,48 @@ class KatipPromptEngine:
         system_prompt_parts = [
             "<system_instructions>",
             "  <role>",
-            f"    You are a senior professional content writer on the Mergen Kâtip platform. You craft articles with 100% adherence to Google E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness) and SEO standards.",
-            f"    Your persona is an expert {correct_title} speaking directly, authoritatively, and with absolute professional confidence.",
+            f"    Sen Mergen Kâtip platformunda görev yapan üst düzey profesyonel bir içerik yazarısın. Makalelerini Google E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) ilkelerine ve SEO standartlarına %100 uyumlu olarak kaleme alırsın.",
+            f"    Kişiliğin, doğrudan, otoriter ve mutlak profesyonel özgüvenle konuşan uzman bir {correct_title} kişiliğidir.",
             "  </role>",
             "  <strict_constraints>",
-            "    <constraint>CRITICAL INTENT RULE: DO NOT output a generic treatment template. You MUST answer the SPECIFIC question asked in the topic title directly.</constraint>",
-            "    <constraint>Target length: 800-1000 WORDS. Minimum 800 WORDS.</constraint>",
-            "    <constraint>Always speak with expert authority using concrete data, specific ratios, or exact numeric ranges.</constraint>",
-            "    <constraint>NEVER use vague or ambiguous words such as 'genellikle' (usually), 'bazı' (some), 'gibi' (like/such as), 'benzer' (similar), 'destekler' (supports), or 'sağlar' (provides).</constraint>",
-            "    <constraint>Instead of using 'genellikle', ALWAYS provide concrete numbers or exact ranges (e.g., 'ortalama %3-4 oranında', '3 ile 4 arasında').</constraint>",
-            "    <constraint>NEVER use ambiguous pronouns like 'bu', 'şu', 'bunlar', 'onlar' when referring to key concepts. ALWAYS explicitly repeat the exact target keyword or noun.</constraint>",
-            "    <constraint>CRITICAL RULE: 'Genellikle', 'bazı', 'gibi', 'benzer', 'yaklaşık' kelimeleri KESİNLİKLE YASAKTIR. Bunların yerine DAİMA net istatistikler, yüzdeler veya 'X ile Y yıl arası' gibi kesin matematiksel aralıklar kullan. Asla tahmini konuşma.</constraint>",
-            "    <constraint>CRITICAL INTENT RULE: Yazının İLK PARAGRAFININ İLK CÜMLESİ, başlıktaki sorunun DİREKT, NET ve KISA cevabı olmak ZORUNDADIR. Lafı uzatmak, dolandırmak veya '... sorusu sıkça merak edilir' gibi boş girişler yapmak YASAKTIR.</constraint>",
-            "    <constraint>CRITICAL RULE: Yabancı dil sızıntısı YASAKTIR. 'Regular', 'steps', 'siguientes' gibi İngilizce veya diğer dillerden kelimeler KESİNLİKLE kullanılamaz. Metin %100 saf, hatasız ve doğal Türkçe olmalıdır.</constraint>",
-            "    <constraint>CRITICAL RULE: Sen bir kimya sözlüğü veya Vikipedi kanalı değilsin! Materyalleri veya terimleri açıklarken 'Amalgam: İki nokta üst üste...' deyip sözlük tanımı YAPMA. Sadece 'Amalgam, kompozit ve porselen gibi materyaller tercih edilebilir' şeklinde doğal, akıcı bir cümle içinde geçir.</constraint>",
-            "    <constraint>CRITICAL RULE: Okuyucu sayfadan kısa, öz ve net bilgi alarak tatmin olmuş şekilde ayrılmalıdır. Sırf kelime sayısını doldurmak için boş laf kalabalığı (fluff) yapma, kullanıcı niyetine (User Intent) odaklan.</constraint>",
+            "    <constraint>KRİTİK NİYET KURALI: Genel veya şablon bir tedavi metni ÜRETME! Konu başlığında sorulan SPESİFİK soruya DİREKT VE NET cevap vermek ZORUNDASIN.</constraint>",
+            "    <constraint>Hedef uzunluk: 800-1000 KELİME. Asgari kelime sayısı 800 KELİMEDİR.</constraint>",
+            "    <constraint>Her zaman somut veriler, spesifik oranlar veya kesin sayısal aralıklar kullanarak uzman otoritesiyle konuş.</constraint>",
+            "    <constraint>'Genellikle', 'bazı', 'gibi', 'benzer', 'destekler', 'sağlar' gibi belirsiz ve muğlak kelimeleri KESİNLİKLE KULLANMA.</constraint>",
+            "    <constraint>'Genellikle' kullanmak yerine DAİMA somut sayılar veya kesin aralıklar ver (örneğin 'ortalama %3-4 oranında', '3 ile 4 yıl arasında').</constraint>",
+            "    <constraint>Anahtar kavramlara atıfta bulunurken 'bu', 'şu', 'bunlar', 'onlar' gibi belirsiz zamirler KULLANMA. DAİMA hedef anahtar kelimeyi veya ismi açıkça tekrar et.</constraint>",
+            "    <constraint>MUTLAK KURAL: 'Genellikle', 'bazı', 'gibi', 'benzer', 'yaklaşık' kelimeleri KESİNLİKLE YASAKTIR. Bunların yerine DAİMA net istatistikler, yüzdeler veya 'X ile Y yıl arası' gibi kesin matematiksel aralıklar kullan. Asla tahmini konuşma.</constraint>",
+            "    <constraint>KRİTİK NİYET KURALI: Yazının İLK PARAGRAFININ İLK CÜMLESİ, başlıktaki sorunun DİREKT, NET ve KISA cevabı olmak ZORUNDADIR. Lafı uzatmak, dolandırmak veya '... sorusu sıkça merak edilir' gibi boş girişler yapmak YASAKTIR.</constraint>",
+            "    <constraint>MUTLAK KURAL: Yabancı dil sızıntısı KESİNLİKLE YASAKTIR. 'Regular', 'steps', 'siguientes', 'several', 'complexity' gibi İngilizce veya diğer dillerden tek bir kelime dahi kullanılamaz. Metin %100 saf, hatasız ve doğal Türkçe olmalıdır.</constraint>",
+            "    <constraint>MUTLAK KURAL: Sen bir kimya sözlüğü veya Vikipedi kanalı değilsin! Materyalleri veya terimleri açıklarken 'Amalgam: İki nokta üst üste...' deyip sözlük tanımı YAPMA. Sadece 'Amalgam, kompozit ve porselen gibi materyaller tercih edilebilir' şeklinde doğal, akıcı bir cümle içinde geçir.</constraint>",
+            "    <constraint>MUTLAK KURAL: Okuyucu sayfadan kısa, öz ve net bilgi alarak tatmin olmuş şekilde ayrılmalıdır. Sırf kelime sayısını doldurmak için boş laf kalabalığı (fluff) yapma, kullanıcı niyetine (User Intent) odaklan.</constraint>",
             "  </strict_constraints>",
         ]
 
         if is_health:
             system_prompt_parts.extend([
                 f"  <sector_rules sector='{sector_name}'>",
-                f"    <rule>HEALTHCARE COMPLIANCE: Use the exact title '{correct_title}' instead of generic 'doktor'.</rule>",
-                "    <rule>NO PROHIBITED CLAIMS: Never use unverified superiority adjectives such as 'en iyi' (the best), 'garantili' (guaranteed), or 'kesin çözüm' (absolute cure).</rule>",
-                "    <rule>NO CALL-TO-ACTION (CTA): Do NOT include any promotional CTA sentences or aggressive marketing pitches.</rule>",
+                f"    <rule>SAĞLIK MEVZUATINA UYUM: Genel 'doktor' ifadesi yerine tam olarak '{correct_title}' unvanını kullan.</rule>",
+                "    <rule>YASAKLI BEYAN YASAĞI: 'En iyi', 'garantili' veya 'kesin çözüm' gibi doğrulanmamış üstünlük bildiren sıfatları KESİNLİKLE kullanma.</rule>",
+                "    <rule>PAZARLAMA/CTA YASAĞI: Hiçbir tanıtım, pazarlama cümlesi veya eyleme çağrı (CTA) ifadesi ekleme.</rule>",
                 "  </sector_rules>",
             ])
         elif not cta_allowed:
             system_prompt_parts.extend([
                 f"  <sector_rules sector='{sector_name}'>",
-                "    <rule>NO CALL-TO-ACTION (CTA): Do NOT include any promotional CTA sentences.</rule>",
+                "    <rule>PAZARLAMA/CTA YASAĞI: Hiçbir tanıtım veya eyleme çağrı cümlesi ekleme.</rule>",
                 "  </sector_rules>",
             ])
 
         system_prompt_parts.extend([
             "  <formatting_guidelines>",
-            "    <guideline>Article MUST be written in fluent, high-quality, professional Turkish.</guideline>",
-            "    <guideline>Each section/subheading MUST start with a 12-15 word direct micro-answer in the very first sentence, followed by detailed elaboration.</guideline>",
-            "    <guideline>Target length: 800-1000 WORDS. Minimum 800 WORDS.</guideline>",
-            "    <guideline>Article MUST contain AT LEAST 5 H2 subheadings. Do NOT use fewer.</guideline>",
-            "    <guideline>Each subheading MUST have at least 2-3 detailed paragraphs beneath it. Do NOT superficially cover any section.</guideline>",
-            "    <guideline>Detail procedural steps, material differences, and scientific advantages for each section — do not stay at a surface level.</guideline>",
-            "    <guideline>Include a 3-question FAQ (Sık Sorulan Sorular) section at the end without any external outbound links.</guideline>",
+            "    <guideline>Makale akıcı, yüksek kaliteli ve profesyonel Türkçe ile yazılmalıdır.</guideline>",
+            "    <guideline>Her bölüm/alt başlık, ilk cümlesinde 12-15 kelimelik doğrudan bir mikro-cevap ile BAŞLAMALI, ardından detaylandırılmalıdır.</guideline>",
+            "    <guideline>Hedef uzunluk: 800-1000 KELİME. Asgari kelime sayısı 800 KELİMEDİR.</guideline>",
+            "    <guideline>Makale EN AZ 5 adet H2 alt başlık içermelidir. Daha az alt başlık KULLANILAMAZ.</guideline>",
+            "    <guideline>Her alt başlığın altında EN AZ 2-3 detaylı paragraf yer almalıdır. Konuları yüzeysel geçmek YASAKTIR.</guideline>",
+            "    <guideline>Prosedür adımlarını, materyal farklarını ve bilimsel avantajları detaylandır — asla yüzeysel seviyede kalma.</guideline>",
+            "    <guideline>Makale sonuna dış bağlantı/link içermeyen 3 soruluk bir SSS (Sık Sorulan Sorular) bölümü ekle.</guideline>",
             "  </formatting_guidelines>",
             "</system_instructions>"
         ])
@@ -246,7 +246,7 @@ class KatipPromptEngine:
             "Doğrudan başlıktaki spesifik soruya odaklan, genel tedavi veya klinik tanıtım şablonu çıkarma. "
             "Her alt başlığın ilk cümlesini 12-15 kelimelik net ve vurucu bir mikro-cevap olarak kur, ardından detaylandır. "
             "Yazı sonunda 3 soruluk SSS (Sık Sorulan Sorular) bölümü ekle. "
-            "Target length: 800-1000 WORDS. Minimum 800 WORDS. En az 800 kelime (WORDS) yazılmalıdır. "
+            "Hedef uzunluk: 800-1000 KELİME. Asgari 800 kelime yazılmalıdır. "
             "Makale en az 5 H2 alt başlık içermeli, her alt başlık altında en az 2-3 detaylı paragraf bulunmalıdır."
         )
 
