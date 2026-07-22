@@ -20,7 +20,20 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Databases
+# Node dependencies & build outputs
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.next/
+**/build/
+
+# IDE & Editor files
+.vscode/
+.idea/
+
+# Logs and SQLite databases
+*.log
+*.sqlite
 *.db
 mergen_local.db
-
