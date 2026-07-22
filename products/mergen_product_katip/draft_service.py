@@ -116,9 +116,9 @@ def generate_draft_for_topic(
         usr_prompt = prompt_data["user_prompt"]
         full_text = prompt_data["full_prompt_text"]
 
-        # 3. LLM Gateway Çağrısı (Llama 3.1 70B)
+        # 3. LLM Gateway Çağrısı (GPT-4o Mini)
         gateway = get_gateway()
-        model_name = "meta-llama/llama-3.1-70b-instruct"
+        model_name = "openai/gpt-4o-mini"
 
         if hasattr(gateway, "route"):
             generated_content = gateway.route(
@@ -304,7 +304,7 @@ def revise_existing_draft(
 
     # 7. LLM Gateway Çağrısı (Array Dict Yapısı ile)
     gateway = get_gateway()
-    model_name = "meta-llama/llama-3.1-70b-instruct"
+    model_name = "openai/gpt-4o-mini"
 
     try:
         if hasattr(gateway, "route_messages"):
