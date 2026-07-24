@@ -56,14 +56,16 @@ BRAND_GUIDE_RULES = {
         "Liste cevaplarında marka adını öne çıkarma; doğal akışta ölçülü kullan.",
         "Cümleler gerçek bir uzman diş hekiminin konuşma tarzını yansıtmalı — robotik şablonlardan kaçın.",
         "Kanıtlanmamış üstünlük sıfatları ('uzman', 'en iyi') tek başına kullanılmamalı.",
-        "Doğru terminoloji kullan: 'doktor' değil 'diş hekimi'."
+        "Doğru terminoloji kullan: 'doktor' değil 'diş hekimi'.",
+        "Kişisel 'Ben/Biz' dili ('anlatacağım', 'vereceğim', 'değinceğiz') KESİNLİKLE YASAKTIR. Metin %100 tarafsız 3. şahıs kurumsal/klinik dille yazılmalıdır."
     ],
     "structure_rules": [
-        "Hedef uzunluk ortalama 600-650 kelime (minimum 400+ kelime).",
+        "Hedef uzunluk ortalama 800-1000 kelime (minimum 800+ kelime).",
         "Yüksek hacimli konularda 7-8 alt başlık idealdir.",
-        "SSS bölümleri 2-3 paragraf, çok net ve kısa olmalı (PAA kutuları için).",
+        "SSS (Sık Sorulan Sorular) cevapları KESİNLİKLE tek satırlık olmayıp en az 2-3 cümlelik detaylı klinik uzman açıklaması içermelidir.",
         "İlk sorguya paragraf formatında doğrudan cevap ver; sonraki sorgulara madde/liste formatında geç.",
         "Her alt başlığın ilk cümlesi mikro-cevap olmalı (12-15 kelimelik net cevap), ardından detay verilmeli.",
+        "H2 alt başlığında sorulmayan veya geçmeyen ekstra yan konular ('ömrü etkileyen faktörler', 'dikkat edilecekler' vb.) İCAT EDİP LİSTELEMEK YASAKTIR.",
         "SSS bölümünden dışarıya link verme.",
         "Tablo formatı uygun alt sorgularda (özellikle fiyat aralıklarında) kullanılmalı.",
         "Terim tanımlarını tekrar etme; parantez içi kısa tanım yeterlidir ('pembe estetik (diş eti estetiği)').",
@@ -101,10 +103,24 @@ REVISION_PATTERNS_DATA = [
     },
     {
         "title": "Sık Sorulan Sorular (SSS Formatı)",
-        "original_excerpt": "SSS kısmında uzun akademik paragraflar.",
-        "revised_excerpt": "SSS cevapları detaya girmeden 2-3 cümlelik temel bilgi vermeli; PAA kutuları için net kalınmalı.",
-        "pattern_tags": ["sss", "paa", "format"],
-        "general_rule": "SSS cevapları detaya girmeden ziyaretçiye hızlı temel bilgi vermeli."
+        "original_excerpt": "Zirkonyum kaplama bakımı nasıl yapılmalıdır?\nDişlerinizi düzenli fırçalayın, diş ipi kullanın ve diş hekiminizi düzenli ziyaret edin.",
+        "revised_excerpt": "Zirkonyum kaplama bakımı nasıl yapılmalıdır?\nZirkonyum kaplamaların uzun ömürlü olması için günde en az iki kez dişlerin düzenli fırçalanması ve arayüz fırçası/diş ipi kullanılması şarttır. Kaplama kenarlarında bakteri plağı birikimini önlemek amacıyla antiseptik gargaralar tercih edilmeli ve yılda iki kez diş hekimi kontrolüne gidilmelidir.",
+        "pattern_tags": ["sss", "derinlik", "uzmanlık"],
+        "general_rule": "SSS cevapları tek satırlık ve baştan savma değil, en az 2-3 cümlelik klinik tavsiye olmalıdır."
+    },
+    {
+        "title": "Konu Uydurma / Yan Başlık İhlali (Sorusu Olmayan Cevap)",
+        "original_excerpt": "Zirkonyum Diş Kaplama Ömrü Ne Kadardır?\nKaplama ömrü 10-15 yıldır. Kaplamaların ömrünü etkileyen faktörler şunlardır: 1. Hijyen 2. Sigara kullanımı...",
+        "revised_excerpt": "Zirkonyum Diş Kaplama Ömrü Ne Kadardır?\nZirkonyum diş kaplamalarının kullanım ömrü doğru bakımla ortalama 10 ile 15 yıl arasında değişmektedir. Düzenli ağız bakımı ve altı aylık hekim kontrolleri ile bu süre sorunsuz bir şekilde tamamlanabilmektedir.",
+        "pattern_tags": ["alt-başlık", "konu-uydurma", "sorgu-uyumu"],
+        "general_rule": "H2 başlığı altında sorulmayan 'ömrü etkileyen faktörler' vb. yan konular ICAT EDİLEMEZ."
+    },
+    {
+        "title": "Kişisel Ağız / 'Ben' Dili İhlali",
+        "original_excerpt": "Bu makalede zirkonyum diş kaplaması hakkında detaylı bilgi vereceğim ve merak edilenleri anlatacağım.",
+        "revised_excerpt": "Bu rehberde zirkonyum diş kaplama süreci, kullanım ömrü ve estetik avantajları tıbbi standartlar çerçevesinde ele alınmaktadır.",
+        "pattern_tags": ["dil", "ben-dili", "kurumsal"],
+        "general_rule": "'Vereceğim', 'anlatacağım' gibi 1. tekil/çoğul 'Ben/Biz' dili KESİNLİKLE YASAKTIR; tarafsız 3. şahıs dili zorunludur."
     },
     {
         "title": "Diş Çektirmek Acıtır mı?",
@@ -282,26 +298,23 @@ def seed_katip_pilot_data(db: Session) -> None:
         bg.rules_json = BRAND_GUIDE_RULES
         logger.info("BrandGuide güncellendi.")
 
-    # 3. RevisionPatterns (15 adet) + Vektör Embedding
-    existing_rev_count = db.query(KatipRevisionPattern).filter(KatipRevisionPattern.tenant_id == PILOT_TENANT_ID).count()
-    if existing_rev_count == 0:
-        logger.info("15 adet Revizyon Kalıbı ve vektör embedding'leri yükleniyor...")
-        for pattern in REVISION_PATTERNS_DATA:
-            # Vector embedding üret (RAG için)
-            embed_text = f"{pattern['title']} {pattern['general_rule']} {pattern['revised_excerpt']}"
-            vec = embed(embed_text)
+    # 3. RevisionPatterns + Vektör Embedding
+    db.query(KatipRevisionPattern).filter(KatipRevisionPattern.tenant_id == PILOT_TENANT_ID).delete()
+    logger.info("%d adet Revizyon Kalıbı ve vektör embedding'leri yükleniyor...", len(REVISION_PATTERNS_DATA))
+    for pattern in REVISION_PATTERNS_DATA:
+        # Vector embedding üret (RAG için)
+        embed_text = f"{pattern['title']} {pattern['general_rule']} {pattern['revised_excerpt']}"
+        vec = embed(embed_text)
 
-            rev = KatipRevisionPattern(
-                tenant_id=PILOT_TENANT_ID,
-                original_excerpt=pattern["original_excerpt"],
-                revised_excerpt=pattern["revised_excerpt"],
-                pattern_tags=pattern["pattern_tags"],
-                embedding=vec,
-            )
-            db.add(rev)
-        logger.info("15 adet Revizyon Kalıbı başarıyla eklendi.")
-    else:
-        logger.info("Revizyon kalıpları zaten yüklü (%d adet).", existing_rev_count)
+        rev = KatipRevisionPattern(
+            tenant_id=PILOT_TENANT_ID,
+            original_excerpt=pattern["original_excerpt"],
+            revised_excerpt=pattern["revised_excerpt"],
+            pattern_tags=pattern["pattern_tags"],
+            embedding=vec,
+        )
+        db.add(rev)
+    logger.info("%d adet Revizyon Kalıbı başarıyla güncellendi.", len(REVISION_PATTERNS_DATA))
 
     # 4. ExampleArticles + Vektör Embedding
     existing_art_count = db.query(KatipExampleArticle).filter(KatipExampleArticle.tenant_id == PILOT_TENANT_ID).count()

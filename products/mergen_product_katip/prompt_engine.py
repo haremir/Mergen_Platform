@@ -102,9 +102,11 @@ class KatipPromptEngine:
         topic_title: str,
         target_keywords: Optional[List[str]] = None,
         additional_feedback: Optional[str] = None,
+        target_subheadings: Optional[List[str]] = None,
+        target_faq_questions: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        Qwen LLM için eksiksiz sistem ve kullanıcı prompt'unu üretir.
+        Qwen/GPT LLM için eksiksiz sistem ve kullanıcı prompt'unu üretir.
 
         Returns:
             {
@@ -148,15 +150,14 @@ class KatipPromptEngine:
             "  <strict_constraints>",
             "    <constraint>KRİTİK NİYET KURALI: Genel veya şablon bir tedavi metni ÜRETME! Konu başlığında sorulan SPESİFİK soruya DİREKT VE NET cevap vermek ZORUNDASIN.</constraint>",
             "    <constraint>KRİTİK İLK CÜMLE KURALI: Hem H1 ana girişinin hem de HER H2 alt başlığının İLK PARAGRAFININ İLK CÜMLESİ, doğrudan o başlıktaki sorunun/konunun NET CEVABI olmak ZORUNDADIR. Örneğin 'Kaç gündür/kaç ay sürer?' sorusuna ilk cümlede 'X ile Y ay/gün sürer' denmelidir; 'iyileşme süreci çok önemlidir' gibi sorudan bağımsız boş cümleler kurmak YASAKTIR.</constraint>",
-            "    <constraint>MUTLAK KURAL — İKİ NOKTA ÜST ÜSTE VE SÖZLÜK TANIMI YASAĞI: Başlık altlarında veya paragraflarda 'Aşamaları: 1. Aşama:', 'Planlama Aşaması: Açıklama...', 'Amalgam: İki nokta üstü...' şeklinde iki nokta üst üste koyup sözlük/liste tanımı yapmak KESİNLİKLE YASAKTIR. Aşama detayları sorulmadıkça aşamaları tek tek başlıklandırıp tanımlama; sadece akıcı cümleler içinde doğal olarak geçir.</constraint>",
-            "    <constraint>MUTLAK KURAL — BAŞLIK VE SORU UYUMU: Her H2 alt başlığı kendi içindeki paragrafın ana konusu ve sorusuyla birebir eşleşmelidir. Soru sormadan sadece faktörleri anlatmak veya başlıkla alakasız bilgi vermek YASAKTIR. SSS (FAQ) soruları da doğrudan net soru cümleleri olmalı ve ilk cümlede net fiyat/yanıt içermelidir (Örn: 'İmplant maliyeti ortalama X TL ile Y TL arasındadır').</constraint>",
+            "    <constraint>MUTLAK KURAL — İKİ NOKTA ÜST ÜSTE VE SÖZLÜK TANIMI YASAĞI: Başlık altlarında veya paragraflarda 'Aşamaları: 1. Aşama:', 'Planlama Aşaması: Açıklama...', 'Amalgam: İki nokta üstü...' şeklinde iki nokta üst üste koyup sözlük/liste tanımı yapmak KESİNLİKLE YASAKTIR.</constraint>",
+            "    <constraint>MUTLAK KURAL — KONU VE BAŞLIK UYUMU: Verilen H2 alt başlıkları dışına KESİNLİKLE çıkma. Ekstra uydurma yan konular ('ömrü etkileyen faktörler', 'dikkat edilecekler' vb.) EKLENEMEZ. Sadece sağlanan veya doğrudan konuyla eşleşen H2 alt başlıklarını işle.</constraint>",
+            "    <constraint>MUTLAK KURAL — SSS (FAQ) DERİNLİK VE UZMANLIK KURALI: SSS cevapları KESİNLİKLE tek satırlık veya baştan savma OLAMAZ. Her SSS cevabı en az 2-3 cümlelik, tatmin edici, doyurucu ve uzman hekim ağzından çıkmış net klinik tavsiyeler/bilgiler içermelidir.</constraint>",
+            "    <constraint>MUTLAK KURAL — KURUMSAL 3. ŞAHIS DİLİ: Metinde 'ben', 'vereceğim', 'anlatacağım', 'biz', 'inceleyeceğiz' gibi 1. tekil veya çoğul şahıs ifadeleri KULLANMAK KESİNLİKLE YASAKTIR. Metin DAİMA %100 tarafsız, üçüncü şahıs kurumsal/klinik bir dille yazılmalıdır.</constraint>",
+            "    <constraint>DİL TERCİHİ VE KELİME DAĞARCIĞI: 'Genellikle' kelimesi yerine DAİMA 'ortalama', 'çoğunlukla', 'vakalara bağlı olarak', 'yaklaşık' gibi somut ve çeşitli ifadeler kullan.</constraint>",
             "    <constraint>Hedef uzunluk: 800-1000 KELİME. Asgari kelime sayısı 800 KELİMEDİR.</constraint>",
-            "    <constraint>Her zaman somut veriler, spesifik oranlar veya kesin sayısal aralıklar kullanarak uzman otoritesiyle konuş.</constraint>",
-            "    <constraint>'Genellikle', 'bazı', 'gibi', 'benzer', 'destekler', 'sağlar' gibi belirsiz ve muğlak kelimeleri KESİNLİKLE KULLANMA.</constraint>",
-            "    <constraint>'Genellikle' kullanmak yerine DAİMA somut sayılar veya kesin aralıklar ver (örneğin 'ortalama %3-4 oranında', '3 ile 4 yıl arasında').</constraint>",
-            "    <constraint>Anahtar kavramlara atıfta bulunurken 'bu', 'şu', 'bunlar', 'onlar' gibi belirsiz zamirler KULLANMA. DAİMA hedef anahtar kelimeyi veya ismi açıkça tekrar et.</constraint>",
-            "    <constraint>MUTLAK KURAL: Yabancı dil sızıntısı KESİNLİKLE YASAKTIR. 'Regular', 'steps', 'siguientes', 'several', 'complexity' gibi İngilizce veya diğer dillerden tek bir kelime dahi kullanılamaz. Metin %100 saf, hatasız ve doğal Türkçe olmalıdır.</constraint>",
-            "    <constraint>MUTLAK KURAL: Okuyucu sayfadan kısa, öz ve net bilgi alarak tatmin olmuş şekilde ayrılmalıdır. Sırf kelime sayısını doldurmak için boş laf kalabalığı (fluff) yapma, kullanıcı niyetine (User Intent) odaklan.</constraint>",
+            "    <constraint>Anahtar kavramlara atıfta bulunurken 'bu', 'şu', 'bunlar' gibi belirsiz zamirler yerine hedef kelimeyi tekrar et.</constraint>",
+            "    <constraint>MUTLAK KURAL: Yabancı dil sızıntısı KESİNLİKLE YASAKTIR. Metin %100 saf, hatasız ve doğal Türkçe olmalıdır.</constraint>",
             "  </strict_constraints>",
         ]
 
@@ -175,14 +176,19 @@ class KatipPromptEngine:
                 "  </sector_rules>",
             ])
 
+        h2_guideline = (
+            f"Makalede tam olarak verilen {len(target_subheadings)} adet H2 alt başlığı kullanılmalı, ekstra başlık uydurulmamalıdır."
+            if target_subheadings
+            else "Makale en az 3-5 adet H2 alt başlık içermelidir."
+        )
+
         system_prompt_parts.extend([
             "  <formatting_guidelines>",
             "    <guideline>Makale akıcı, yüksek kaliteli ve profesyonel Türkçe ile yazılmalıdır.</guideline>",
             "    <guideline>Her bölüm/alt başlık, ilk cümlesinde 12-15 kelimelik doğrudan bir mikro-cevap ile BAŞLAMALI, ardından detaylandırılmalıdır.</guideline>",
             "    <guideline>Hedef uzunluk: 800-1000 KELİME. Asgari kelime sayısı 800 KELİMEDİR.</guideline>",
-            "    <guideline>Makale EN AZ 5 adet H2 alt başlık içermelidir. Daha az alt başlık KULLANILAMAZ.</guideline>",
-            "    <guideline>Her alt başlığın altında EN AZ 2-3 detaylı paragraf yer almalıdır. Konuları yüzeysel geçmek YASAKTIR.</guideline>",
-            "    <guideline>Prosedür adımlarını, materyal farklarını ve bilimsel avantajları detaylandır — asla yüzeysel seviyede kalma.</guideline>",
+            f"    <guideline>{h2_guideline}</guideline>",
+            "    <guideline>Her alt başlığın altında en az 2-3 detaylı paragraf yer almalıdır. Konuları yüzeysel geçmek YASAKTIR.</guideline>",
             "    <guideline>Makale sonuna dış bağlantı/link içermeyen 3 soruluk bir SSS (Sık Sorulan Sorular) bölümü ekle.</guideline>",
             "  </formatting_guidelines>",
             "</system_instructions>"
@@ -195,8 +201,14 @@ class KatipPromptEngine:
             f"# HEDEF KONU: {topic_title}",
         ]
 
+        if target_subheadings:
+            user_prompt_parts.append("## ZORUNLU H2 ALT BAŞLIKLARI (SADECE BUNLARI KULLAN, EKSTRA H2 EKLEME):\n" + "\n".join(f"- {h}" for h in target_subheadings))
+
         if target_keywords:
             user_prompt_parts.append(f"## Hedef Anahtar Kelimeler: {', '.join(target_keywords)}")
+
+        if target_faq_questions:
+            user_prompt_parts.append("## ZORUNLU SSS SORULARI (SSS BÖLÜMÜNDE SADECE BU SORULARI YANITLA):\n" + "\n".join(f"- {q}" for q in target_faq_questions))
 
         # Kurallar Bölümü
         user_prompt_parts.append("## MARKA VE İÇERİK KURAL SETİ:")
@@ -243,11 +255,12 @@ class KatipPromptEngine:
         user_prompt_parts.append(
             "## ÇIKTI FORMATI:\n"
             "Yazıyı Markdown formatında yaz. H1 başlığı ile başla. "
-            "Doğrudan başlıktaki spesifik soruya odaklan, genel tedavi veya klinik tanıtım şablonu çıkarma. "
+            "Doğrudan başlıktaki spesifik soruya odaklan. "
             "Her alt başlığın ilk cümlesini 12-15 kelimelik net ve vurucu bir mikro-cevap olarak kur, ardından detaylandır. "
-            "Yazı sonunda 3 soruluk SSS (Sık Sorulan Sorular) bölümü ekle. "
-            "Hedef uzunluk: 800-1000 KELİME. Asgari 800 kelime yazılmalıdır. "
-            "Makale en az 5 H2 alt başlık içermeli, her alt başlık altında en az 2-3 detaylı paragraf bulunmalıdır."
+            "ASLA 1. tekil/çoğul şahıs ('Ben'/'Biz') dili kullanma; DAİMA 3. şahıs kurumsal/klinik dille yaz. "
+            "Sadece belirtilen H2 alt başlıklarını kullan, ekstra uydurma yan başlıklar ekleme. "
+            "Yazı sonunda belirtilen SSS sorularını cevaplayan 3 soruluk SSS bölümü ekle. SSS cevapları en az 2-3 cümlelik klinik açıklamalar olmalıdır. "
+            "Hedef uzunluk: 800-1000 KELİME. Asgari 800 kelime yazılmalıdır."
         )
 
         user_prompt = "\n\n".join(user_prompt_parts)

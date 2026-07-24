@@ -45,6 +45,17 @@ def _compute_hash(text_content: str) -> str:
     return hashlib.sha256(text_content.encode("utf-8")).hexdigest()
 
 
+def _post_process_content(content: str) -> str:
+    """LLM çıktısındaki 'genellikle' kelimesini dil bilgisi yapısını bozmadan temizler."""
+    import re
+    if not content:
+        return content
+    # 'genellikle ' kelimesini tamamen silerek veya 'çoğunlukla' ile doğal Türkçeye dönüştür
+    content = re.sub(r'\b[Gg]enellikle\s+', '', content)
+    content = re.sub(r'\b[Gg]enellikle\b', 'çoğunlukla', content)
+    return content
+
+
 def generate_draft_for_topic(
     db: Session,
     tenant_id: str,
@@ -138,6 +149,7 @@ def generate_draft_for_topic(
         else:
             raise AttributeError("LLMGateway does not have route or complete method")
 
+        generated_content = _post_process_content(generated_content)
         latency_ms = int((time.time() - start_time) * 1000)
         words = len(generated_content.split())
         approx_tokens = len(full_text.split()) + len(generated_content.split())
@@ -333,6 +345,7 @@ def revise_existing_draft(
         logger.error("Revizyon LLM Gateway çağrısı başarısız oldu", exc_info=True)
         raise
 
+    generated_content = _post_process_content(generated_content)
     latency_ms = int((time.time() - start_t) * 1000)
     words = len(generated_content.split())
     full_text = f"=== SYSTEM ===\n{system_prompt}\n\n=== USER ===\n{messages[1]['content']}"
