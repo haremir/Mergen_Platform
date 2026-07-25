@@ -30,6 +30,7 @@ from sqlalchemy import (
     Integer,
     Text,
     DateTime,
+    Boolean,
     ForeignKey,
     UniqueConstraint,
     JSON,
@@ -53,33 +54,31 @@ def _new_uuid() -> str:
 
 
 # ---------------------------------------------------------------------------
-# BrandGuides — tenant başına marka kuralları (her zaman prompta girer)
+# BrandGuides — Proje/Marka Kuralları (B2B Proje Hiyerarşisi)
 # ---------------------------------------------------------------------------
 
 class KatipBrandGuide(Base):
     """
-    Tenant'ın marka kuralları.
-
-    rules_json alanı serbest yapıda olup aşağıdaki anahtarları önerilir:
-        tone, forbidden_words, cta_templates, target_audience, seo_focus_keywords
-
-    token_count: rules_json içeriğinin tahmini token büyüklüğü.
-    Bir tenant'ın BrandGuide'ı 800 token'ı aştığında prompt budget aşımı oluşur
-    ve llm_gateway katmanında çağrı reddedilir.
+    Ajansın (Tenant) altındaki bağımsız Marka/Proje kaydı.
+    Örn: DentSmile Klinik, Elite İnşaat vb.
     """
 
     __tablename__ = "katip_brand_guides"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    sector: Mapped[str] = mapped_column(String(100), nullable=False)
+    brand_name: Mapped[str] = mapped_column(String(200), nullable=False, default="Genel Marka Projesi")
+    sector: Mapped[str] = mapped_column(String(100), nullable=False, default="general")
     rules_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    tone_rules: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    forbidden_words: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    cms_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
     __table_args__ = (
-        # Tenant başına tek aktif brand guide (çoklu versiyon için revision kullanılır)
         Index("ix_katip_brand_guides_tenant", "tenant_id"),
     )
 
@@ -90,49 +89,46 @@ class KatipBrandGuide(Base):
 
 class KatipExampleArticle(Base):
     """
-    Tenant'ın örnek/referans makaleleri.
-
-    embedding: pgvector ile semantik arama için kullanılır.
-    RAG katmanı bu sütun üzerinden cosine similarity ile top-k döndürür.
-    SQLite geliştirme ortamında embedding sütunu boş kalabilir.
+    Tenant/BrandGuide'a ait örnek/referans makaleler.
     """
 
     __tablename__ = "katip_example_articles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    brand_guide_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("katip_brand_guides.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    # Embedding vektörü — PostgreSQL ortamında pgvector::vector tipine cast edilir.
-    # SQLite uyumluluğu için JSON olarak saklanır; üretimde ALTER COLUMN gerekir.
     embedding: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     word_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     __table_args__ = (
         Index("ix_katip_example_articles_tenant", "tenant_id"),
+        Index("ix_katip_example_articles_brand", "brand_guide_id"),
     )
 
 
 # ---------------------------------------------------------------------------
-# RevisionPatterns — geçmiş düzeltme örnekleri (RAG üzerinden top-k getirilir)
+# RevisionPatterns — geçmiş düzeltme örnekleri (Proje bazlı RAG izolasyonu)
 # ---------------------------------------------------------------------------
 
 class KatipRevisionPattern(Base):
     """
     Editörün geçmişte talep ettiği düzeltmelerin özeti.
-
-    original_excerpt: düzeltilmeden önceki metin pasajı.
-    revised_excerpt:  editörün onayladığı son hâl.
-    pattern_tags:     JSON liste — örn. ["ton", "SEO", "cta"] — filtreleme için.
-
-    embedding: revised_excerpt + pattern_tags üzerinden üretilmiş vektör.
+    Hafıza zehirlenmesini önlemek için brand_guide_id ve sector ile izole edilir.
     """
 
     __tablename__ = "katip_revision_patterns"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    brand_guide_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("katip_brand_guides.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    sector: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
     original_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
     revised_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
     pattern_tags: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
@@ -141,40 +137,33 @@ class KatipRevisionPattern(Base):
 
     __table_args__ = (
         Index("ix_katip_revision_patterns_tenant", "tenant_id"),
+        Index("ix_katip_revision_patterns_brand", "brand_guide_id"),
     )
 
 
 # ---------------------------------------------------------------------------
-# TopicsQueue — üretim bekleyen konular
+# TopicsQueue — üretim bekleyen konular (Proje bazlı)
 # ---------------------------------------------------------------------------
 
 class KatipTopicQueue(Base):
     """
     Scheduler tarafından tüketilen konu kuyruğu.
-
-    status: "pending" | "locked" | "processing" | "done" | "failed"
-
-    locked_at + processed_at ile idempotency sağlanır:
-      SELECT ... FOR UPDATE SKIP LOCKED → duplicate üretimi engeller.
-
-    Aynı tenant için aynı topic_title'ın tekrar kuyruğa girmesini engellemek
-    amacıyla UNIQUE(tenant_id, topic_title) kısıtı bilinçli olarak eklenmedi;
-    farklı tarihler için aynı konu yeniden üretilebilir.
     """
 
     __tablename__ = "katip_topics_queue"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    brand_guide_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("katip_brand_guides.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     topic_title: Mapped[str] = mapped_column(String(500), nullable=False)
     target_keywords: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending", index=True
     )
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    # locked_at: işlem başladığında set edilir, timeout tespiti için kullanılır
     locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    # processed_at: başarılı tamamlanma zamanı
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -185,20 +174,17 @@ class KatipTopicQueue(Base):
 
     __table_args__ = (
         Index("ix_katip_topics_queue_status_tenant", "status", "tenant_id"),
+        Index("ix_katip_topics_queue_brand", "brand_guide_id"),
     )
 
 
 # ---------------------------------------------------------------------------
-# Drafts — taslak kök tablosu (kavramsal entity)
+# Drafts — taslak kök tablosu
 # ---------------------------------------------------------------------------
 
 class KatipDraft(Base):
     """
     Taslak kök tablosu — bir konuya ait tüm versiyonların çatısı.
-
-    status: "draft" | "in_review" | "approved" | "published" | "archived"
-
-    DraftVersions bu tabloya FK ile bağlanır; her versiyon bir dal oluşturur.
     """
 
     __tablename__ = "katip_drafts"
@@ -208,6 +194,9 @@ class KatipDraft(Base):
         String(36), ForeignKey("katip_topics_queue.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    brand_guide_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("katip_brand_guides.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="draft", index=True
     )
@@ -223,6 +212,7 @@ class KatipDraft(Base):
 
     __table_args__ = (
         Index("ix_katip_drafts_tenant_status", "tenant_id", "status"),
+        Index("ix_katip_drafts_brand", "brand_guide_id"),
     )
 
 

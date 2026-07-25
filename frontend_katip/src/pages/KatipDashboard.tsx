@@ -29,9 +29,22 @@ function setTenantId(id: string): void {
 // Tipler
 // ---------------------------------------------------------------------------
 
+interface ProjectItem {
+  id: string;
+  tenant_id: string;
+  brand_name: string;
+  sector: string;
+  tone_rules?: string[];
+  forbidden_words?: string[];
+  cms_config?: any;
+  is_default: boolean;
+  created_at: string;
+}
+
 interface TopicItem {
   id: string;
   tenant_id: string;
+  brand_guide_id?: string | null;
   topic_title: string;
   target_keywords: string[] | null;
   status: "pending" | "processing" | "done" | "failed";
@@ -51,7 +64,9 @@ interface TopicsResponse {
 interface DraftListItem {
   draft_id: string;
   topic_id: string;
+  topic_title?: string;
   tenant_id: string;
+  brand_guide_id?: string | null;
   status: "draft" | "in_review" | "approved" | "published" | "archived";
   latest_version_number: number | null;
   created_at: string;
@@ -133,6 +148,13 @@ export default function KatipDashboard() {
   const [isEditingTenant, setIsEditingTenant] = useState(false);
   const [registeredTenants, setRegisteredTenants] = useState<{ tenant_id: string; business_name: string }[]>([]);
 
+  // Multi-Project state
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [newBrandName, setNewBrandName] = useState("");
+  const [newSector, setNewSector] = useState("dental_clinic");
+
   // Registered Tenants List Fetch
   const fetchRegisteredTenants = useCallback(async () => {
     try {
@@ -145,9 +167,25 @@ export default function KatipDashboard() {
     }
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const { data } = await axios.get<{ items: ProjectItem[] }>(`${API_BASE}/api/katip/projects`, {
+        headers: { "X-Tenant-ID": currentTenant },
+      });
+      const items = data.items ?? [];
+      setProjects(items);
+      if (items.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(items[0].id);
+      }
+    } catch (_e) {
+      console.log("Katip projects fetch warning", _e);
+    }
+  }, [currentTenant, selectedProjectId]);
+
   useEffect(() => {
     fetchRegisteredTenants();
-  }, [fetchRegisteredTenants]);
+    fetchProjects();
+  }, [fetchRegisteredTenants, fetchProjects]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"topics" | "drafts">("topics");
@@ -157,9 +195,11 @@ export default function KatipDashboard() {
   const [topicsLoading, setTopicsLoading] = useState(false);
   const [generatingTopicId, setGeneratingTopicId] = useState<string | null>(null);
 
-  // New Topic Form State
+  // New Topic Form State (Chips / Interactive Tags)
   const [showAddTopicModal, setShowAddTopicModal] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState("");
+  const [topicChips, setTopicChips] = useState<string[]>([]);
+  const [topicInput, setTopicInput] = useState("");
   const [newKeywords, setNewKeywords] = useState("");
   const [newPriority, setNewPriority] = useState(5);
   const [addTopicSubmitting, setAddTopicSubmitting] = useState(false);
@@ -184,7 +224,10 @@ export default function KatipDashboard() {
   const fetchTopics = useCallback(async () => {
     setTopicsLoading(true);
     try {
-      const { data } = await axios.get<TopicsResponse>(`${API_BASE}/api/katip/topics`, {
+      const url = selectedProjectId 
+        ? `${API_BASE}/api/katip/topics?brand_guide_id=${selectedProjectId}`
+        : `${API_BASE}/api/katip/topics`;
+      const { data } = await axios.get<TopicsResponse>(url, {
         headers: { "X-Tenant-ID": currentTenant },
       });
       setTopics(data.items);
@@ -194,15 +237,14 @@ export default function KatipDashboard() {
     } finally {
       setTopicsLoading(false);
     }
-  }, [currentTenant]);
+  }, [currentTenant, selectedProjectId]);
 
   const fetchDrafts = useCallback(async () => {
     setDraftsLoading(true);
     try {
-      const url =
-        draftStatusFilter !== "all"
-          ? `${API_BASE}/api/katip/drafts?draft_status=${draftStatusFilter}`
-          : `${API_BASE}/api/katip/drafts`;
+      let url = `${API_BASE}/api/katip/drafts?`;
+      if (selectedProjectId) url += `brand_guide_id=${selectedProjectId}&`;
+      if (draftStatusFilter !== "all") url += `draft_status=${draftStatusFilter}&`;
 
       const { data } = await axios.get<DraftsListResponse>(url, {
         headers: { "X-Tenant-ID": currentTenant },
@@ -214,7 +256,7 @@ export default function KatipDashboard() {
     } finally {
       setDraftsLoading(false);
     }
-  }, [currentTenant, draftStatusFilter]);
+  }, [currentTenant, selectedProjectId, draftStatusFilter]);
 
   useEffect(() => {
     if (activeTab === "topics") {
@@ -222,7 +264,7 @@ export default function KatipDashboard() {
     } else {
       fetchDrafts();
     }
-  }, [activeTab, fetchTopics, fetchDrafts]);
+  }, [activeTab, selectedProjectId, fetchTopics, fetchDrafts]);
 
   // Tenant Değiştirme
   const handleSaveTenant = () => {
@@ -257,30 +299,85 @@ export default function KatipDashboard() {
     }
   };
 
+  // Yeni Marka/Proje Oluşturma (POST /api/katip/projects)
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBrandName.trim()) return;
+
+    try {
+      const { data } = await axios.post(
+        `${API_BASE}/api/katip/projects`,
+        {
+          brand_name: newBrandName.trim(),
+          sector: newSector,
+        },
+        { headers: { "X-Tenant-ID": currentTenant } }
+      );
+
+      showNotify("success", `Yeni marka projesi eklendi: "${data.brand_name}"`);
+      setNewBrandName("");
+      setShowAddProjectModal(false);
+      fetchProjects();
+      setSelectedProjectId(data.id);
+    } catch (err) {
+      const ae = err as AxiosError<{ detail: string }>;
+      showNotify("error", ae.response?.data?.detail ?? "Proje eklenemedi.");
+    }
+  };
+
+  // Chip Etiket Ekleme Handler'ları
+  const handleAddChip = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const val = topicInput.trim().replace(/,/g, "");
+      if (val && !topicChips.includes(val)) {
+        setTopicChips((prev) => [...prev, val]);
+        setTopicInput("");
+      }
+    }
+  };
+
+  const handleRemoveChip = (indexToRemove: number) => {
+    setTopicChips((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
   // Yeni Konu Ekleme (POST /api/katip/topics)
   const handleCreateTopic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTopicTitle.trim()) return;
+    const finalTitles = [...topicChips];
+    if (topicInput.trim()) finalTitles.push(topicInput.trim());
 
+    if (finalTitles.length === 0 && !newTopicTitle.trim()) {
+      showNotify("error", "Lütfen en az bir konu başlığı ekleyin.");
+      return;
+    }
+
+    const titlesToSubmit = finalTitles.length ? finalTitles : [newTopicTitle.trim()];
     setAddTopicSubmitting(true);
+
     try {
       const keywordsArray = newKeywords
         .split(",")
         .map((k) => k.trim())
         .filter(Boolean);
 
-      await axios.post(
-        `${API_BASE}/api/katip/topics`,
-        {
-          topic_title: newTopicTitle.trim(),
-          target_keywords: keywordsArray.length ? keywordsArray : undefined,
-          priority: newPriority,
-        },
-        { headers: { "X-Tenant-ID": currentTenant } }
-      );
+      for (const tTitle of titlesToSubmit) {
+        await axios.post(
+          `${API_BASE}/api/katip/topics`,
+          {
+            topic_title: tTitle,
+            brand_guide_id: selectedProjectId || undefined,
+            target_keywords: keywordsArray.length ? keywordsArray : undefined,
+            priority: newPriority,
+          },
+          { headers: { "X-Tenant-ID": currentTenant } }
+        );
+      }
 
-      showNotify("success", `Yeni konu kuyruğa eklendi: "${newTopicTitle.trim()}"`);
+      showNotify("success", `${titlesToSubmit.length} konu başarıyla kuyruğa eklendi!`);
       setNewTopicTitle("");
+      setTopicChips([]);
+      setTopicInput("");
       setNewKeywords("");
       setNewPriority(5);
       setShowAddTopicModal(false);
@@ -319,38 +416,58 @@ export default function KatipDashboard() {
           </div>
         </div>
 
-        {/* TENANT SEÇİCİ */}
-        <div className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-1.5">
-          <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-          </svg>
-          <span className="text-xs text-slate-400 font-semibold">Aktif Müşteri / Ajans:</span>
-          
-          <select
-            value={currentTenant}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === "__custom__") {
-                setIsEditingTenant(true);
-              } else {
-                setTenantId(val);
-                setCurrentTenant(val);
-                setTenantInput(val);
-                setIsEditingTenant(false);
-                showNotify("success", `Müşteri "${val}" olarak değiştirildi.`);
-              }
-            }}
-            className="bg-slate-900 border border-slate-600 rounded-lg px-2.5 py-1 text-xs text-blue-300 font-mono font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
-          >
-            {registeredTenants.map((t) => (
-              <option key={t.tenant_id} value={t.tenant_id}>
-                {t.business_name} ({t.tenant_id})
-              </option>
-            ))}
-            <option value="pilot-dental-clinic-01">Pilot Diş Kliniği (pilot-dental-clinic-01)</option>
-            <option value="__custom__">+ Elle Manuel Müşteri ID Yaz...</option>
-          </select>
+        {/* MULTI-TENANT & MULTI-BRAND HEADER ACTIONS */}
+        <div className="flex items-center gap-4">
+          {/* PROJE SEÇİCİ */}
+          <div className="flex items-center gap-2 bg-blue-950/40 border border-blue-800/60 rounded-xl px-3 py-1.5">
+            <span className="text-xs text-blue-300 font-semibold">⚡ Aktif Marka / Proje:</span>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="bg-slate-900 border border-blue-600/60 rounded-lg px-2.5 py-1 text-xs text-white font-bold focus:outline-none focus:border-blue-400 cursor-pointer"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.brand_name} ({p.sector})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowAddProjectModal(true)}
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all"
+            >
+              + Proje Ekle
+            </button>
+          </div>
 
+          {/* TENANT SEÇİCİ */}
+          <div className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-1.5">
+            <span className="text-xs text-slate-400 font-semibold">Ajans Hesabı:</span>
+            <select
+              value={currentTenant}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "__custom__") {
+                  setIsEditingTenant(true);
+                } else {
+                  setTenantId(val);
+                  setCurrentTenant(val);
+                  setTenantInput(val);
+                  setIsEditingTenant(false);
+                  showNotify("success", `Müşteri "${val}" olarak değiştirildi.`);
+                }
+              }}
+              className="bg-slate-900 border border-slate-600 rounded-lg px-2.5 py-1 text-xs text-blue-300 font-mono font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              {registeredTenants.map((t) => (
+                <option key={t.tenant_id} value={t.tenant_id}>
+                  {t.business_name}
+                </option>
+              ))}
+              <option value="pilot-dental-clinic-01">Pilot Diş Kliniği</option>
+              <option value="__custom__">+ Manuel ID...</option>
+            </select>
+          </div>
           {isEditingTenant && (
             <div className="flex items-center gap-2">
               <input
@@ -592,12 +709,83 @@ export default function KatipDashboard() {
         )}
       </main>
 
-      {/* ── YENİ KONU EKLEME MODALI ───────────────────────────────────────── */}
+      {/* ── YENİ MARKA / PROJE EKLEME MODALI ─────────────────────────────── */}
+      {showAddProjectModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-lg text-white">Yeni Marka / Proje Ekle</h3>
+              <button
+                onClick={() => setShowAddProjectModal(false)}
+                className="text-slate-400 hover:text-white text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProject} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 uppercase tracking-wider">
+                  Marka / Proje Adı *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newBrandName}
+                  onChange={(e) => setNewBrandName(e.target.value)}
+                  placeholder="Örn. DentSmile Klinik veya Elite İnşaat"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 uppercase tracking-wider">
+                  Sektör Category *
+                </label>
+                <select
+                  value={newSector}
+                  onChange={(e) => setNewSector(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="dental_clinic">Diş Kliniği & Ağız Sağlığı</option>
+                  <option value="real_estate">Gayrimenkul & İnşaat</option>
+                  <option value="legal">Hukuk & Danışmanlık</option>
+                  <option value="ecommerce">E-Ticaret & Perakende</option>
+                  <option value="health">Sağlık & Medikal</option>
+                  <option value="tech">Teknoloji & Yazılım</option>
+                  <option value="general">Genel Sektör</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAddProjectModal(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-700"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-600/30"
+                >
+                  Proje Oluştur
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── YENİ KONU EKLEME MODALI (CHIPS / INTERACTIVE TAGS) ───────────── */}
       {showAddTopicModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg text-white">Yeni Konu Ekle</h3>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="font-bold text-lg text-white">Konu / Makale Ekle</h3>
+                <p className="text-xs text-slate-400">Konuları etiket kutuları (Chips) olarak ekleyin.</p>
+              </div>
               <button
                 onClick={() => setShowAddTopicModal(false)}
                 className="text-slate-400 hover:text-white text-lg"
@@ -608,35 +796,54 @@ export default function KatipDashboard() {
 
             <form onSubmit={handleCreateTopic} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">
-                  Konu Başlığı <span className="text-red-400">*</span>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Konu Başlıkları (Enter veya Virgül ile Ekleyin)
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={newTopicTitle}
-                  onChange={(e) => setNewTopicTitle(e.target.value)}
-                  placeholder="Örn: Zirkonyum Diş Kaplama Nasıl Yapılır?"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                />
+                
+                {/* Chip Container */}
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center gap-2 min-h-[80px] focus-within:border-blue-500">
+                  {topicChips.map((chip, idx) => (
+                    <span
+                      key={idx}
+                      className="bg-blue-900/40 text-blue-300 border border-blue-700/60 text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1.5"
+                    >
+                      {chip}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveChip(idx)}
+                        className="text-blue-400 hover:text-white font-bold ml-1"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    value={topicInput}
+                    onChange={(e) => setTopicInput(e.target.value)}
+                    onKeyDown={handleAddChip}
+                    placeholder={topicChips.length === 0 ? "Örn. Zirkonyum Diş Kaplama (Enter'a basın)..." : "Başka konu ekle..."}
+                    className="flex-1 min-w-[180px] bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">
-                  Anahtar Kelimeler (Virgülle ayırın)
+                  Hedef SEO Anahtar Kelimeleri (İsteğe bağlı)
                 </label>
                 <input
                   type="text"
                   value={newKeywords}
                   onChange={(e) => setNewKeywords(e.target.value)}
                   placeholder="zirkonyum, diş kaplama, estetik diş"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase">
-                  Öncelik (1 - 10)
+                  Öncelik Seviyesi (1 - 10)
                 </label>
                 <input
                   type="number"
@@ -644,11 +851,11 @@ export default function KatipDashboard() {
                   max={10}
                   value={newPriority}
                   onChange={(e) => setNewPriority(Number(e.target.value))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowAddTopicModal(false)}
@@ -659,9 +866,9 @@ export default function KatipDashboard() {
                 <button
                   type="submit"
                   disabled={addTopicSubmitting}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-600/30 disabled:opacity-50 flex items-center gap-2"
                 >
-                  {addTopicSubmitting ? "Ekleniyor..." : "Kuyruğa Ekle"}
+                  {addTopicSubmitting ? "Ekleniyor..." : "⚡ Konuları Kuyruğa Ekle"}
                 </button>
               </div>
             </form>

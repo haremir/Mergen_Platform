@@ -22,7 +22,7 @@ function Sidebar() {
             <Sparkles className="w-5 h-5 text-blue-500" />
           </div>
           <span className="font-bold text-lg text-white tracking-tight">
-            Mergen Yönetim Paneli
+            Mergen Panel
           </span>
         </div>
 
@@ -65,7 +65,7 @@ function Sidebar() {
             }`}
           >
             <FileText className="w-5 h-5" />
-            Kâtip AI Modülü
+            Mergen Kâtip Paneli
           </Link>
 
           <Link
@@ -124,7 +124,7 @@ export default function App() {
             <Route path="/katip" element={<KatipOverview />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/analytics" element={<Analytics />} />
-            <Route path="*" element={<Navigate to="/onboarding" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
       </div>

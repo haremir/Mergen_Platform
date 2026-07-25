@@ -189,7 +189,6 @@ export default function Dashboard() {
   // KPI calculations
   const totalCount = tenants.length;
   const activeCount = tenants.filter(t => t.status === 'active').length;
-  const pendingCount = tenants.filter(t => t.status === 'pending_verification').length;
 
   return (
     <div className="max-w-6xl mx-auto py-12 px-6 space-y-8 relative">
@@ -475,59 +474,94 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* SECTION 1: Bot Control Center */}
-              <div className="bg-slate-900 border border-slate-850 rounded-xl p-6 shadow-xl space-y-6">
-                <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
-                  <Settings className="w-4.5 h-4.5 text-blue-500" />
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Asistan Canlı Yönetim İstasyonu</h4>
-                </div>
+              {/* SECTION 1: Product Control Center (Conditional for Desk vs Katip) */}
+              {selectedTenant.product === 'katip' ? (
+                <div className="bg-slate-900 border border-slate-850 rounded-xl p-6 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-850 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Settings className="w-4.5 h-4.5 text-blue-500" />
+                      <h4 className="text-sm font-bold text-white uppercase tracking-wider">Kâtip Ajans & Marka Konfigürasyonu</h4>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-900/40 text-blue-400 border border-blue-800">
+                      Multi-Tenant B2B RAG
+                    </span>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-                  {/* Active Switch */}
-                  <div className="space-y-2">
-                    <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Çalışma Modu</span>
-                    <div className="flex items-center gap-3 bg-slate-950 border border-slate-800 p-4.5 rounded-lg">
-                      <input
-                        type="checkbox"
-                        id="slide_bot_active"
-                        checked={botActive}
-                        onChange={(e) => setBotActive(e.target.checked)}
-                        className="w-4.5 h-4.5 text-blue-600 bg-slate-900 border-slate-700 rounded-md focus:ring-blue-500 cursor-pointer"
-                      />
-                      <label htmlFor="slide_bot_active" className="text-xs font-semibold text-slate-200 cursor-pointer">
-                        Bot Yanıtı Aktif
-                      </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Marka / İşletme Adı</span>
+                      <span className="text-sm font-bold text-white block">{selectedTenant.business_name}</span>
+                    </div>
+
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Sektör Kategorisi</span>
+                      <span className="text-sm font-bold text-blue-400 block">{SECTOR_TURKISH_LABELS[selectedTenant.sector] || selectedTenant.sector}</span>
                     </div>
                   </div>
 
-                  {/* Prompt Textarea */}
-                  <div className="md:col-span-2 space-y-2">
-                    <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-blue-400">
-                      Geçici Özel Kurallar (Örn: Bugün %10 indirim yap)
-                    </span>
-                    <textarea
-                      rows={2}
-                      placeholder="Genel karakter şablonunu değiştirmeden, sadece bugünlük kampanya kuralları, indirimler veya istisnai direktifleri buraya yazabilirsiniz. Örn: 'Bugün tüm saç kesimlerinde %10 indirimimiz olduğunu ilet.'"
-                      value={promptOverride}
-                      onChange={(e) => setPromptOverride(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-sans"
-                    />
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Lütfen Dikkat: Burası ana sistem talimatı (Base System Prompt) yerine geçmez, sadece ana talimata anlık ek kurallar eklemek için kullanılır.
-                    </p>
+                  <div className="flex justify-end pt-2 border-t border-slate-850">
+                    <a
+                      href="/katip"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-xs transition-all uppercase tracking-wider flex items-center gap-2"
+                    >
+                      🚀 Kâtip Yönetim Paneline Git →
+                    </a>
                   </div>
                 </div>
+              ) : (
+                <div className="bg-slate-900 border border-slate-850 rounded-xl p-6 shadow-xl space-y-6">
+                  <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+                    <Settings className="w-4.5 h-4.5 text-blue-500" />
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Asistan Canlı Yönetim İstasyonu</h4>
+                  </div>
 
-                <div className="flex justify-end pt-3 border-t border-slate-850">
-                  <button
-                    onClick={handleSaveSettings}
-                    disabled={savingSettings}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-semibold px-5 py-2 rounded-lg text-xs transition-all uppercase tracking-wider cursor-pointer"
-                  >
-                    {savingSettings ? 'Güncelleniyor...' : 'Konfigürasyonu Güncelle'}
-                  </button>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                    {/* Active Switch */}
+                    <div className="space-y-2">
+                      <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Çalışma Modu</span>
+                      <div className="flex items-center gap-3 bg-slate-950 border border-slate-800 p-4.5 rounded-lg">
+                        <input
+                          type="checkbox"
+                          id="slide_bot_active"
+                          checked={botActive}
+                          onChange={(e) => setBotActive(e.target.checked)}
+                          className="w-4.5 h-4.5 text-blue-600 bg-slate-900 border-slate-700 rounded-md focus:ring-blue-500 cursor-pointer"
+                        />
+                        <label htmlFor="slide_bot_active" className="text-xs font-semibold text-slate-200 cursor-pointer">
+                          Bot Yanıtı Aktif
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Prompt Textarea */}
+                    <div className="md:col-span-2 space-y-2">
+                      <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-blue-400">
+                        Geçici Özel Kurallar (Örn: Bugün %10 indirim yap)
+                      </span>
+                      <textarea
+                        rows={2}
+                        placeholder="Genel karakter şablonunu değiştirmeden, sadece bugünlük kampanya kuralları, indirimler veya istisnai direktifleri buraya yazabilirsiniz. Örn: 'Bugün tüm saç kesimlerinde %10 indirimimiz olduğunu ilet.'"
+                        value={promptOverride}
+                        onChange={(e) => setPromptOverride(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-sans"
+                      />
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Lütfen Dikkat: Burası ana sistem talimatı (Base System Prompt) yerine geçmez, sadece ana talimata anlık ek kurallar eklemek için kullanılır.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-3 border-t border-slate-850">
+                    <button
+                      onClick={handleSaveSettings}
+                      disabled={savingSettings}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-semibold px-5 py-2 rounded-lg text-xs transition-all uppercase tracking-wider cursor-pointer"
+                    >
+                      {savingSettings ? 'Güncelleniyor...' : 'Konfigürasyonu Güncelle'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* SECTION 2: Quota & Usage */}
               <div className="bg-slate-900 border border-slate-850 rounded-xl p-6 shadow-xl space-y-4">

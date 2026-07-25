@@ -121,17 +121,42 @@ def _resolve_tenant(tenant_id: str) -> str:
         except Exception as inner_exc:
             logger.error("Failed to auto-create tenant '%s': %s", tid, inner_exc, exc_info=True)
     except Exception as exc:
-        logger.warning("_resolve_tenant lookup warning for tenant '%s': %s", tid, exc)
-    return tid
-
+        logger.warning("_resolve_tenant lookup warning: %s", exc)
 
 # ---------------------------------------------------------------------------
-# Pydantic Şemalar — router içinde tutulur (panel/schemas.py'den izole)
+# Pydantic Şemalar — Proje / BrandGuide & Kuyruk
 # ---------------------------------------------------------------------------
+
+class ProjectCreateRequest(BaseModel):
+    brand_name: str = Field(..., min_length=2, max_length=200, description="Marka veya Proje adı")
+    sector: str = Field(default="general", max_length=100, description="Sektör (ör. dental_clinic, real_estate)")
+    tone_rules: Optional[List[str]] = Field(default=None)
+    forbidden_words: Optional[List[str]] = Field(default=None)
+    cms_config: Optional[Dict[str, Any]] = Field(default=None, description="WordPress URL/Pass veya Webhook ayarları")
+
+
+class ProjectResponse(BaseModel):
+    id: str
+    tenant_id: str
+    brand_name: str
+    sector: str
+    tone_rules: Optional[List[str]] = None
+    forbidden_words: Optional[List[str]] = None
+    cms_config: Optional[Dict[str, Any]] = None
+    is_default: bool = False
+    created_at: str
+
+
+class ProjectListResponse(BaseModel):
+    tenant_id: str
+    total: int
+    items: List[ProjectResponse]
+
 
 class TopicQueueItem(BaseModel):
     id: str
     tenant_id: str
+    brand_guide_id: Optional[str] = None
     topic_title: str
     target_keywords: Optional[List[str]]
     status: str
@@ -167,6 +192,7 @@ class DraftDetailResponse(BaseModel):
     draft_id: str
     topic_id: str
     tenant_id: str
+    brand_guide_id: Optional[str] = None
     status: str
     created_at: str
     updated_at: str
@@ -189,6 +215,7 @@ class FeedbackResponse(BaseModel):
 
 class TopicCreateRequest(BaseModel):
     topic_title: str = Field(..., min_length=3, max_length=500)
+    brand_guide_id: Optional[str] = Field(default=None, description="Bağlı olduğu Proje/BrandGuide ID")
     target_keywords: Optional[List[str]] = Field(default=None)
     priority: int = Field(default=5, ge=1, le=10)
 
@@ -197,159 +224,164 @@ class TopicCreateResponse(BaseModel):
     status: str
     topic_id: str
     tenant_id: str
+    brand_guide_id: Optional[str]
     topic_title: str
 
 
-class GenerateDraftRequest(BaseModel):
-    topic_id: str = Field(..., description="Kuyruktaki konunun UUID'si")
-
-
-class GenerateDraftResponse(BaseModel):
-    status: str
-    draft_id: str
-    version_id: str
-    version_number: int
-    word_count: int
-    model_used: str
-    latency_ms: int
-    token_count: int
-
-
-class RegenerateRequest(BaseModel):
-    feedback_note: str = Field(..., min_length=5, max_length=4000, description="Editörün revizyon notu (yeni versiyon için)")
-    author_label: Optional[str] = Field(default=None, max_length=100)
-
-
-class RegenerateResponse(BaseModel):
-    status: str
-    draft_id: str
-    feedback_id: str
-    new_version_id: str
-    new_version_number: int
-    word_count: int
-    latency_ms: int
-
-
 # ---------------------------------------------------------------------------
-# Endpoint: POST /drafts/generate — Yeni taslak üret (v1)
+# Endpoints: Projects (Marka/Proje Yönetimi)
 # ---------------------------------------------------------------------------
-
-@router.post(
-    "/drafts/generate",
-    response_model=GenerateDraftResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Konu kuyruğundaki bir konu için v1 taslak üret",
-    description=(
-        "Belirtilen topic_id'ye ait konuyu alarak Prompt Engine + RAG + LLM Gateway "
-        "üzerinden ilk taslağı (v1) üretir ve veritabanına kaydeder. "
-        "Konu zaten işlenmişse idempotent yanıt döner."
-    ),
-)
-def generate_draft(
-    body: GenerateDraftRequest,
-    x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
-) -> GenerateDraftResponse:
-    tenant_id = _resolve_tenant(x_tenant_id)
-    db = _get_db()
-    try:
-        result = generate_draft_for_topic(
-            db=db,
-            tenant_id=tenant_id,
-            topic_id=body.topic_id,
-            prompt_engine=_prompt_engine,
-        )
-        return GenerateDraftResponse(
-            status=result["status"],
-            draft_id=result["draft_id"],
-            version_id=result["version_id"],
-            version_number=result.get("version_number", 1),
-            word_count=result.get("word_count", 0),
-            model_used=result.get("model_used", "unknown"),
-            latency_ms=result.get("latency_ms", 0),
-            token_count=result.get("token_count", 0),
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except Exception as e:
-        logger.exception("POST /api/katip/drafts/generate HATA: %s", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    finally:
-        db.close()
-
-
-# ---------------------------------------------------------------------------
-# Endpoint: POST /drafts/{draft_id}/regenerate — Feedback ile yeni versiyon üret (v2+)
-# ---------------------------------------------------------------------------
-
-@router.post(
-    "/drafts/{draft_id}/regenerate",
-    response_model=RegenerateResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Editör notu ile yeni taslak versiyonu üret (v2+)",
-    description=(
-        "Editörün girdiği revizyon notunu dikkate alarak mevcut son versiyonu temel alıp "
-        "yeni bir versiyon (v2, v3 …) üretir. FeedbackNote kaydı oluşturulur, "
-        "ardından LLM Gateway çağrılır ve yeni DraftVersion DB'ye yazılır."
-    ),
-)
-def regenerate_draft(
-    body: RegenerateRequest,
-    draft_id: str = Path(..., description="Taslak UUID'si"),
-    x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
-) -> RegenerateResponse:
-    tenant_id = _resolve_tenant(x_tenant_id)
-    db = _get_db()
-    try:
-        res = revise_existing_draft(
-            db=db,
-            tenant_id=tenant_id,
-            draft_id=draft_id,
-            feedback_text=body.feedback_note.strip(),
-            author_label=body.author_label,
-            prompt_engine=_prompt_engine,
-        )
-        return RegenerateResponse(
-            status=res["status"],
-            draft_id=res["draft_id"],
-            feedback_id=res["feedback_id"],
-            new_version_id=res["new_version_id"],
-            new_version_number=res["new_version_number"],
-            word_count=res["word_count"],
-            latency_ms=res["latency_ms"],
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    finally:
-        db.close()
-
-
-
 
 @router.get(
-    "/tenants",
+    "/projects",
+    response_model=ProjectListResponse,
     status_code=status.HTTP_200_OK,
-    summary="Kâtip sistemindeki tüm kayıtlı kiracı/ajans listesini getir",
+    summary="Ajansın tüm alt marka/projelerini listele",
 )
-def get_katip_tenants() -> Dict[str, Any]:
-    tm = get_tenant_manager()
-    tenants = tm.list_tenants()
-    return {
-        "total": len(tenants),
-        "items": tenants,
-    }
+def list_projects(
+    x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
+) -> ProjectListResponse:
+    tenant_id = _resolve_tenant(x_tenant_id)
+    db = _get_db()
+    try:
+        projects = db.query(KatipBrandGuide).filter(KatipBrandGuide.tenant_id == tenant_id).all()
+        
+        # Eğer henüz proje yoksa varsayılan ana projeyi oluştur
+        if not projects:
+            default_p = KatipBrandGuide(
+                tenant_id=tenant_id,
+                brand_name="Ana Marka Projesi",
+                sector="dental_clinic",
+                is_default=True,
+                rules_json={"sector": "dental_clinic"},
+                tone_rules=["Profesyonel ve otoriter uzman hekim dili"],
+                forbidden_words=["genellikle", "bazı"],
+            )
+            db.add(default_p)
+            db.commit()
+            db.refresh(default_p)
+            projects = [default_p]
 
+        items = [
+            ProjectResponse(
+                id=p.id,
+                tenant_id=p.tenant_id,
+                brand_name=p.brand_name or "Proje",
+                sector=p.sector or "general",
+                tone_rules=p.tone_rules,
+                forbidden_words=p.forbidden_words,
+                cms_config=p.cms_config,
+                is_default=p.is_default,
+                created_at=p.created_at.isoformat(),
+            )
+            for p in projects
+        ]
+        return ProjectListResponse(tenant_id=tenant_id, total=len(items), items=items)
+    finally:
+        db.close()
+
+
+@router.post(
+    "/projects",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Yeni marka/proje ekle",
+)
+def create_project(
+    body: ProjectCreateRequest,
+    x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
+) -> ProjectResponse:
+    tenant_id = _resolve_tenant(x_tenant_id)
+    db = _get_db()
+    try:
+        project = KatipBrandGuide(
+            tenant_id=tenant_id,
+            brand_name=body.brand_name.strip(),
+            sector=body.sector.strip(),
+            tone_rules=body.tone_rules or ["Profesyonel uzman dili"],
+            forbidden_words=body.forbidden_words or ["genellikle"],
+            cms_config=body.cms_config,
+            rules_json={"sector": body.sector.strip()},
+            is_default=False,
+        )
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+
+        return ProjectResponse(
+            id=project.id,
+            tenant_id=project.tenant_id,
+            brand_name=project.brand_name,
+            sector=project.sector,
+            tone_rules=project.tone_rules,
+            forbidden_words=project.forbidden_words,
+            cms_config=project.cms_config,
+            is_default=project.is_default,
+            created_at=project.created_at.isoformat(),
+        )
+    finally:
+        db.close()
+
+
+@router.put(
+    "/projects/{project_id}",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Marka/proje ayarlarını güncelle",
+)
+def update_project(
+    body: ProjectCreateRequest,
+    project_id: str = Path(..., description="Project UUID"),
+    x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
+) -> ProjectResponse:
+    tenant_id = _resolve_tenant(x_tenant_id)
+    db = _get_db()
+    try:
+        project = db.query(KatipBrandGuide).filter(
+            KatipBrandGuide.id == project_id,
+            KatipBrandGuide.tenant_id == tenant_id
+        ).first()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proje bulunamadı.")
+
+        project.brand_name = body.brand_name.strip()
+        project.sector = body.sector.strip()
+        project.tone_rules = body.tone_rules
+        project.forbidden_words = body.forbidden_words
+        if body.cms_config is not None:
+            project.cms_config = body.cms_config
+        project.updated_at = datetime.now(timezone.utc)
+
+        db.commit()
+        db.refresh(project)
+
+        return ProjectResponse(
+            id=project.id,
+            tenant_id=project.tenant_id,
+            brand_name=project.brand_name,
+            sector=project.sector,
+            tone_rules=project.tone_rules,
+            forbidden_words=project.forbidden_words,
+            cms_config=project.cms_config,
+            is_default=project.is_default,
+            created_at=project.created_at.isoformat(),
+        )
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Endpoint: GET /topics — Konu kuyruğunu listele
+# ---------------------------------------------------------------------------
 
 @router.get(
     "/topics",
     response_model=TopicsListResponse,
     status_code=status.HTTP_200_OK,
-    summary="Tenant'ın konu kuyruğunu listele",
-    description=(
-        "TopicsQueue tablosundaki konuları döndürür. "
-        "status parametresiyle filtrelenebilir (pending, done, failed vb.)."
-    ),
+    summary="Tenant/Proje konu kuyruğunu listele",
 )
 def list_topics(
+    brand_guide_id: Optional[str] = None,
     topic_status: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
@@ -358,9 +390,9 @@ def list_topics(
     tenant_id = _resolve_tenant(x_tenant_id)
     db = _get_db()
     try:
-        query = db.query(KatipTopicQueue).filter(
-            KatipTopicQueue.tenant_id == tenant_id
-        )
+        query = db.query(KatipTopicQueue).filter(KatipTopicQueue.tenant_id == tenant_id)
+        if brand_guide_id:
+            query = query.filter(KatipTopicQueue.brand_guide_id == brand_guide_id)
         if topic_status:
             query = query.filter(KatipTopicQueue.status == topic_status)
 
@@ -379,6 +411,7 @@ def list_topics(
             TopicQueueItem(
                 id=t.id,
                 tenant_id=t.tenant_id,
+                brand_guide_id=t.brand_guide_id,
                 topic_title=t.topic_title,
                 target_keywords=t.target_keywords,
                 status=t.status,
@@ -391,24 +424,16 @@ def list_topics(
             for t in topics
         ]
 
-        logger.info(
-            "GET /api/katip/topics: tenant=%s total=%d status_filter=%s",
-            tenant_id, total, topic_status,
-        )
         return TopicsListResponse(tenant_id=tenant_id, total=total, items=items)
     finally:
         db.close()
 
 
-# ---------------------------------------------------------------------------
-# Endpoint: POST /topics — Manuel konu ekle
-# ---------------------------------------------------------------------------
-
 @router.post(
     "/topics",
     response_model=TopicCreateResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Konu kuyruğuna manuel konu ekle",
+    summary="Konu kuyruğuna yeni konu ekle",
 )
 def create_topic(
     body: TopicCreateRequest,
@@ -419,6 +444,7 @@ def create_topic(
     try:
         topic = KatipTopicQueue(
             tenant_id=tenant_id,
+            brand_guide_id=body.brand_guide_id,
             topic_title=body.topic_title.strip(),
             target_keywords=body.target_keywords,
             priority=body.priority,
@@ -428,14 +454,11 @@ def create_topic(
         db.commit()
         db.refresh(topic)
 
-        logger.info(
-            "POST /api/katip/topics: tenant=%s topic_id=%s title='%s'",
-            tenant_id, topic.id, topic.topic_title,
-        )
         return TopicCreateResponse(
             status="created",
             topic_id=topic.id,
             tenant_id=tenant_id,
+            brand_guide_id=topic.brand_guide_id,
             topic_title=topic.topic_title,
         )
     finally:
@@ -530,11 +553,12 @@ def get_draft(
 @router.get(
     "/drafts",
     status_code=status.HTTP_200_OK,
-    summary="Tenant'ın tüm taslak listesini getir",
+    summary="Tenant/Proje taslak listesini getir",
 )
 def list_drafts(
+    brand_guide_id: Optional[str] = None,
     draft_status: Optional[str] = None,
-    limit: int = 30,
+    limit: int = 50,
     offset: int = 0,
     x_tenant_id: str = Header(..., alias="X-Tenant-ID"),
 ) -> Dict[str, Any]:
@@ -542,6 +566,8 @@ def list_drafts(
     db = _get_db()
     try:
         query = db.query(KatipDraft).filter(KatipDraft.tenant_id == tenant_id)
+        if brand_guide_id:
+            query = query.filter(KatipDraft.brand_guide_id == brand_guide_id)
         if draft_status:
             query = query.filter(KatipDraft.status == draft_status)
 
@@ -555,7 +581,8 @@ def list_drafts(
 
         items = []
         for d in drafts:
-            # Her taslak için en son versiyon numarasını çek
+            # Topic başlığını da çek
+            t_row = db.query(KatipTopicQueue.topic_title).filter(KatipTopicQueue.id == d.topic_id).first()
             latest_version_row = (
                 db.query(KatipDraftVersion.version_number)
                 .filter(KatipDraftVersion.draft_id == d.id)
@@ -565,7 +592,9 @@ def list_drafts(
             items.append({
                 "draft_id": d.id,
                 "topic_id": d.topic_id,
+                "topic_title": t_row[0] if t_row else "Konu",
                 "tenant_id": d.tenant_id,
+                "brand_guide_id": d.brand_guide_id,
                 "status": d.status,
                 "latest_version_number": latest_version_row[0] if latest_version_row else None,
                 "created_at": d.created_at.isoformat(),

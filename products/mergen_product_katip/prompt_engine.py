@@ -54,14 +54,26 @@ class KatipPromptEngine:
         self.max_revision_patterns = max_revision_patterns
         self.max_example_articles = max_example_articles
 
-    def _fetch_brand_guide(self, db: Session, tenant_id: str) -> Optional[KatipBrandGuide]:
-        return db.query(KatipBrandGuide).filter(KatipBrandGuide.tenant_id == tenant_id).first()
+    def _fetch_brand_guide(self, db: Session, tenant_id: str, brand_guide_id: Optional[str] = None) -> Optional[KatipBrandGuide]:
+        query = db.query(KatipBrandGuide).filter(KatipBrandGuide.tenant_id == tenant_id)
+        if brand_guide_id:
+            bg = query.filter(KatipBrandGuide.id == brand_guide_id).first()
+            if bg:
+                return bg
+        return query.first()
 
     def _find_relevant_patterns(
-        self, db: Session, tenant_id: str, topic_title: str, top_k: int = 5
+        self, db: Session, tenant_id: str, topic_title: str, top_k: int = 5, brand_guide_id: Optional[str] = None, sector: Optional[str] = None
     ) -> List[KatipRevisionPattern]:
-        """Konu başlığına en yakın semantik revizyon kalıplarını RAG ile getirir."""
-        patterns = db.query(KatipRevisionPattern).filter(KatipRevisionPattern.tenant_id == tenant_id).all()
+        """Konu başlığına en yakın semantik revizyon kalıplarını proje/sektör izoleli RAG ile getirir."""
+        query = db.query(KatipRevisionPattern).filter(KatipRevisionPattern.tenant_id == tenant_id)
+        if brand_guide_id:
+            # Sadece ilgili projeye veya aynı sektöre ait kuralları çek — hafıza zehirlenmesini önle!
+            query = query.filter((KatipRevisionPattern.brand_guide_id == brand_guide_id) | (KatipRevisionPattern.sector == sector))
+        elif sector:
+            query = query.filter(KatipRevisionPattern.sector == sector)
+
+        patterns = query.all()
         if not patterns:
             return []
 
@@ -77,10 +89,14 @@ class KatipPromptEngine:
         return [item[1] for item in scored[:top_k]]
 
     def _find_relevant_articles(
-        self, db: Session, tenant_id: str, topic_title: str, top_k: int = 2
+        self, db: Session, tenant_id: str, topic_title: str, top_k: int = 2, brand_guide_id: Optional[str] = None
     ) -> List[KatipExampleArticle]:
         """Konu başlığına en yakın örnek referans makaleleri RAG ile getirir."""
-        articles = db.query(KatipExampleArticle).filter(KatipExampleArticle.tenant_id == tenant_id).all()
+        query = db.query(KatipExampleArticle).filter(KatipExampleArticle.tenant_id == tenant_id)
+        if brand_guide_id:
+            query = query.filter(KatipExampleArticle.brand_guide_id == brand_guide_id)
+
+        articles = query.all()
         if not articles:
             return []
 
@@ -104,6 +120,7 @@ class KatipPromptEngine:
         additional_feedback: Optional[str] = None,
         target_subheadings: Optional[List[str]] = None,
         target_faq_questions: Optional[List[str]] = None,
+        brand_guide_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Qwen/GPT LLM için eksiksiz sistem ve kullanıcı prompt'unu üretir.
@@ -119,8 +136,9 @@ class KatipPromptEngine:
             }
         """
         # 1. BrandGuide Çek
-        brand_guide = self._fetch_brand_guide(db, tenant_id)
+        brand_guide = self._fetch_brand_guide(db, tenant_id, brand_guide_id=brand_guide_id)
         rules = brand_guide.rules_json if brand_guide else {}
+        sector_name = getattr(brand_guide, "sector", None) or rules.get("sector_exceptions", {}).get("sector", "general")
         token_count = brand_guide.token_count if brand_guide else 0
 
         # Token Budget Kontrolü
@@ -131,9 +149,13 @@ class KatipPromptEngine:
                 tenant_id, token_count, MAX_BRAND_GUIDE_TOKENS
             )
 
-        # 2. RAG ile İlgili Revizyon Kalıpları ve Örnekleri Çek
-        rel_patterns = self._find_relevant_patterns(db, tenant_id, topic_title, self.max_revision_patterns)
-        rel_articles = self._find_relevant_articles(db, tenant_id, topic_title, self.max_example_articles)
+        # 2. RAG ile İlgili Revizyon Kalıpları ve Örnekleri Çek (Proje İzoleli)
+        rel_patterns = self._find_relevant_patterns(
+            db, tenant_id, topic_title, self.max_revision_patterns, brand_guide_id=brand_guide_id, sector=sector_name
+        )
+        rel_articles = self._find_relevant_articles(
+            db, tenant_id, topic_title, self.max_example_articles, brand_guide_id=brand_guide_id
+        )
 
         # 3. Sistem Promptu İnşası (Türkçe XML Formatı)
         sector_name = rules.get("sector_exceptions", {}).get("sector", "general")

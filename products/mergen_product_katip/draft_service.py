@@ -121,6 +121,7 @@ def generate_draft_for_topic(
             tenant_id=tenant_id,
             topic_title=topic.topic_title,
             target_keywords=topic.target_keywords,
+            brand_guide_id=topic.brand_guide_id,
         )
 
         sys_prompt = prompt_data["system_prompt"]
@@ -159,6 +160,7 @@ def generate_draft_for_topic(
         draft = KatipDraft(
             topic_id=topic_id,
             tenant_id=tenant_id,
+            brand_guide_id=topic.brand_guide_id,
             status="draft",
         )
         db.add(draft)

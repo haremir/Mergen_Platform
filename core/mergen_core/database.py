@@ -40,7 +40,7 @@ if "DATABASE_URL" not in os.environ:
 
 DATABASE_URL: str = os.environ.get(
     "DATABASE_URL",
-    "postgresql+asyncpg://mergen:mergen_secret@127.0.0.1:5433/mergen_db",
+    "sqlite:///./mergen_app.db",
 )
 
 # Alembic ve sync context için sync URL türet (asyncpg → psycopg2)
@@ -48,6 +48,8 @@ _SYNC_DATABASE_URL: str = DATABASE_URL.replace(
     "postgresql+asyncpg://", "postgresql+psycopg2://"
 )
 
+# SQLite fallback kontrolü
+_IS_SQLITE = "sqlite" in DATABASE_URL
 
 # ---------------------------------------------------------------------------
 # Declarative Base — tüm ORM modelleri bu Base'den türer.
@@ -58,36 +60,41 @@ class Base(DeclarativeBase):
 
 
 # ---------------------------------------------------------------------------
-# Async engine — uygulama runtime'ı için
+# Async & Sync engines — uygulama runtime'ı için
 # ---------------------------------------------------------------------------
 
-async_engine: AsyncEngine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-)
+if _IS_SQLITE:
+    _SYNC_DATABASE_URL = "sqlite:///./mergen_app.db"
+    engine = create_engine(
+        _SYNC_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+    )
+    async_engine = None
+else:
+    engine = create_engine(
+        _SYNC_DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+    )
+    async_engine: AsyncEngine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+    )
 
-async_session_factory: sessionmaker[AsyncSession] = sessionmaker(
-    bind=async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
-
-
-# ---------------------------------------------------------------------------
-# Sync engine — Alembic migration ve legacy sync endpoint'leri için
-# ---------------------------------------------------------------------------
-
-engine = create_engine(
-    _SYNC_DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-)
+if async_engine:
+    async_session_factory: sessionmaker[AsyncSession] = sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+else:
+    async_session_factory = None
 
 SessionLocal: sessionmaker[Session] = sessionmaker(
     bind=engine,

@@ -148,6 +148,26 @@ export async function getTenants(): Promise<TenantListEntry[]> {
   await new Promise((resolve) => setTimeout(resolve, 300));
   return [
     {
+      tenant_id: 'pilot-dental-clinic-01',
+      business_name: 'DentSmile Klinik & İçerik Ajansı',
+      sector: 'dental_clinic',
+      product: 'katip',
+      plan: 'business',
+      whatsapp_phone_number_id: null,
+      created_at: '2026-07-20T10:00:00Z',
+      status: 'active',
+    },
+    {
+      tenant_id: 'elite-realestate-agency',
+      business_name: 'Elite İnşaat & Gayrimenkul Ajansı',
+      sector: 'real_estate',
+      product: 'katip',
+      plan: 'premium',
+      whatsapp_phone_number_id: null,
+      created_at: '2026-07-21T14:20:00Z',
+      status: 'active',
+    },
+    {
       tenant_id: '4cc9eef0-82eb-54ea-9999-desktest9999',
       business_name: 'Acme Barber Istanbul',
       sector: 'hairdresser',

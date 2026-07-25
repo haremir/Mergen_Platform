@@ -566,34 +566,64 @@ export default function DraftEditor() {
         <div className="flex items-center gap-3 flex-shrink-0">
           <StatusBadge status={draft.status} />
 
-          {/* Durum geçiş butonları */}
-          {draft.status === "draft" && (
-            <button
-              onClick={() => handleStatusChange("in_review")}
-              disabled={statusUpdating}
-              className="px-4 py-2 text-xs font-semibold rounded-lg bg-amber-700/60 hover:bg-amber-700 text-amber-200 border border-amber-700/50 transition-colors disabled:opacity-50"
-            >
-              İncelemeye Al
-            </button>
-          )}
-          {draft.status === "in_review" && (
+          {/* Approval Lock Actions */}
+          {draft.status !== "approved" && draft.status !== "published" ? (
             <button
               onClick={() => handleStatusChange("approved")}
               disabled={statusUpdating}
-              className="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-700/60 hover:bg-emerald-700 text-emerald-200 border border-emerald-700/50 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 border border-emerald-500/50 transition-all flex items-center gap-1.5 disabled:opacity-50"
             >
-              Onayla
+              <span>✓ Taslağı Onayla ve Tamamla</span>
             </button>
+          ) : (
+            <span className="text-xs text-emerald-400 font-semibold px-3 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800">
+              ✓ Onaylandı (Hafıza İşlendi)
+            </span>
           )}
-          {draft.status === "approved" && (
-            <button
-              onClick={() => handleStatusChange("published")}
-              disabled={statusUpdating}
-              className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-700/60 hover:bg-blue-700 text-blue-200 border border-blue-700/50 transition-colors disabled:opacity-50"
-            >
-              Yayınla
-            </button>
-          )}
+
+          {/* Copy Button (Approval Locked) */}
+          <button
+            onClick={() => {
+              if (draft.status !== "approved" && draft.status !== "published") return;
+              navigator.clipboard.writeText(displayedContent);
+              setSuccessMessage("Metin panoya kopyalandı!");
+              setTimeout(() => setSuccessMessage(null), 3000);
+            }}
+            disabled={draft.status !== "approved" && draft.status !== "published"}
+            title={
+              draft.status !== "approved" && draft.status !== "published"
+                ? "Metni kopyalamak için önce taslağı onaylamalısınız."
+                : "Metni Kopyala"
+            }
+            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
+              draft.status === "approved" || draft.status === "published"
+                ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer"
+                : "bg-slate-900 text-slate-600 border-slate-800 opacity-50 cursor-not-allowed"
+            }`}
+          >
+            <span>📋 Metni Kopyala</span>
+          </button>
+
+          {/* CMS Export Button (Approval Locked) */}
+          <button
+            onClick={() => {
+              if (draft.status !== "approved" && draft.status !== "published") return;
+              handleStatusChange("published");
+            }}
+            disabled={draft.status !== "approved" && draft.status !== "published"}
+            title={
+              draft.status !== "approved" && draft.status !== "published"
+                ? "WordPress/CMS'e aktarmak için önce taslağı onaylamalısınız."
+                : "WordPress / CMS'e Gönder"
+            }
+            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
+              draft.status === "approved" || draft.status === "published"
+                ? "bg-blue-600 hover:bg-blue-500 text-white border-blue-500 shadow-md shadow-blue-900/30 cursor-pointer"
+                : "bg-slate-900 text-slate-600 border-slate-800 opacity-50 cursor-not-allowed"
+            }`}
+          >
+            <span>🚀 CMS'e Gönder</span>
+          </button>
 
           <button
             onClick={fetchDraft}
