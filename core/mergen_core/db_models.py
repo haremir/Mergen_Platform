@@ -9,9 +9,14 @@ Author: Mergen Platform -- Core Team
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, Integer, DateTime
+from sqlalchemy import Column, String, Boolean, Integer, DateTime, JSON
 from mergen_core.database import Base
+
+
+def _new_uuid() -> str:
+    return str(uuid.uuid4())
 
 
 class DBTenant(Base):
@@ -29,6 +34,22 @@ class DBTenant(Base):
     system_prompt_override = Column(String(1000), nullable=True)
     persona = Column(String(100), default="friendly_energetic", nullable=False)
     telegram_token = Column(String(100), nullable=True)
+    # Auth alanları (v2 — Auth overhaul)
+    email = Column(String(200), unique=True, nullable=True, index=True)
+    hashed_password = Column(String(200), nullable=True)
+    # Hangi ürünlerin aktif olduğunu tutan JSON listesi: ["katip"], ["desk"], ["katip", "desk"]
+    enabled_products = Column(JSON, nullable=True, default=list)
+
+
+class DBAdminUser(Base):
+    """Super admin kullanıcı tablosu — DBTenant'tan bağımsız."""
+
+    __tablename__ = "admin_users"
+
+    id = Column(String(36), primary_key=True, default=_new_uuid, index=True)
+    email = Column(String(200), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(200), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class DBPlanUsage(Base):

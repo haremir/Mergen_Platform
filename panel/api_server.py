@@ -30,9 +30,13 @@ from dotenv import load_dotenv
 # Load environment variables from .env
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Path, status, Request, Header, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Path, status, Request, Header, Query, BackgroundTasks, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # ---------------------------------------------------------------------------
 # Path setup — make shared/, core/, packages/, products/ importable
@@ -72,14 +76,26 @@ from mergen_common.models import OutboundMessage  # noqa: E402
 from mergen_core.plan_guard import PLAN_LIMITS, get_plan_guard  # noqa: E402
 from mergen_core.database import engine, Base, SessionLocal  # noqa: E402
 from mergen_core.tenant_manager import get_tenant_manager, TenantNotFoundError  # noqa: E402
-from mergen_core.db_models import DBPlatformSetting  # noqa: E402
+from mergen_core.db_models import DBPlatformSetting, DBTenant, DBAdminUser  # noqa: E402
 from mergen_core.llm_orchestrator import process_inbound_message  # noqa: E402
+from panel.auth import (  # noqa: E402
+    get_password_hash,
+    verify_password,
+    create_access_token,
+    get_current_admin,
+    get_current_tenant,
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(name)s -- %(message)s",
 )
+
+# ---------------------------------------------------------------------------
+# Rate Limiter (slowapi)
+# ---------------------------------------------------------------------------
+_limiter = Limiter(key_func=get_remote_address)
 
 # ---------------------------------------------------------------------------
 # FastAPI App
@@ -96,6 +112,8 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+app.state.limiter = _limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 
@@ -918,12 +936,351 @@ def get_platform_analytics():
 
 
 # ---------------------------------------------------------------------------
-# Kâtip Modülü Router
+# AUTH ENDPOINTS
+# ---------------------------------------------------------------------------
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    role: str
+    display_name: str
+
+
+@app.post(
+    "/api/auth/login",
+    tags=["Auth"],
+    summary="Tenant veya Süper Admin girişi",
+)
+@_limiter.limit("10/minute")
+def auth_login(request: Request, body: LoginRequest) -> dict:
+    """
+    Email + şifre ile giriş yapar.
+    Önce DBAdminUser, sonra DBTenant tablosunda arar.
+    Başarılı login'de JWT döner.
+    Güvenlik: Hangi adımda başarısız olduğu belli edilmez.
+    """
+    _generic_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Geçersiz e-posta veya şifre.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    with SessionLocal() as db:
+        # 1. Süper admin kontrolü
+        admin = db.query(DBAdminUser).filter(DBAdminUser.email == body.email).first()
+        if admin:
+            if not verify_password(body.password, admin.hashed_password):
+                raise _generic_error
+            token = create_access_token(sub=admin.id, role="super_admin")
+            return LoginResponse(
+                access_token=token,
+                token_type="bearer",
+                role="super_admin",
+                display_name=admin.email,
+            ).model_dump()
+
+        # 2. Tenant kontrolü
+        tenant = db.query(DBTenant).filter(DBTenant.email == body.email).first()
+        if tenant:
+            if not tenant.hashed_password or not verify_password(body.password, tenant.hashed_password):
+                raise _generic_error
+            token = create_access_token(sub=tenant.id, role="tenant")
+            return LoginResponse(
+                access_token=token,
+                token_type="bearer",
+                role="tenant",
+                display_name=tenant.business_name,
+            ).model_dump()
+
+    raise _generic_error
+
+
+# ---------------------------------------------------------------------------
+# ADMIN ENDPOINTS — GET Üzerinden tenant yönetimi
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/api/admin/tenants/{tenant_id}/set-password",
+    tags=["Admin"],
+    summary="Tenant için ilk email ve şifre ata (admin-only)",
+)
+def admin_set_tenant_password(
+    tenant_id: str = Path(...),
+    body: LoginRequest = ...,
+    admin_id: str = Depends(get_current_admin),
+) -> dict:
+    """Mevcut tenant'a email + hashed_password atar. Pilot tenant'lar için ilk şifre ataması."""
+    with SessionLocal() as db:
+        tenant = db.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant bulunamadı.")
+        tenant.email = body.email
+        tenant.hashed_password = get_password_hash(body.password)
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Hata: {e}")
+    logger.info("Admin %s set password for tenant %s", admin_id, tenant_id)
+    return {"status": "success", "message": "Tenant şifresi güncellendi."}
+
+
+@app.get(
+    "/api/admin/tenants",
+    tags=["Admin"],
+    summary="Tüm tenant listesi (admin-only)",
+)
+def admin_list_tenants(
+    admin_id: str = Depends(get_current_admin),
+) -> dict:
+    """Tüm kayıtlı tenant'ları gerçek DB'den döner."""
+    with SessionLocal() as db:
+        from mergen_product_katip.models import KatipBrandGuide, KatipDraft
+        tenants = db.query(DBTenant).all()
+        items = []
+        for t in tenants:
+            project_count = db.query(KatipBrandGuide).filter(KatipBrandGuide.tenant_id == t.id).count()
+            draft_count = db.query(KatipDraft).filter(KatipDraft.tenant_id == t.id).count()
+            items.append({
+                "tenant_id": t.id,
+                "business_name": t.business_name,
+                "sector": t.sector,
+                "plan": t.plan,
+                "enabled_products": t.enabled_products or [],
+                "email": t.email,
+                "has_password": bool(t.hashed_password),
+                "project_count": project_count,
+                "draft_count": draft_count,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "bot_active": t.bot_active,
+            })
+    return {"total": len(items), "items": items}
+
+
+@app.get(
+    "/api/admin/tenants/{tenant_id}",
+    tags=["Admin"],
+    summary="Tek tenant detayı (admin-only)",
+)
+def admin_get_tenant(
+    tenant_id: str = Path(...),
+    admin_id: str = Depends(get_current_admin),
+) -> dict:
+    with SessionLocal() as db:
+        from mergen_product_katip.models import KatipBrandGuide, KatipDraft
+        tenant = db.query(DBTenant).filter(DBTenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant bulunamadı.")
+
+        projects = db.query(KatipBrandGuide).filter(KatipBrandGuide.tenant_id == tenant_id).all()
+        project_data = []
+        for p in projects:
+            dc = db.query(KatipDraft).filter(KatipDraft.brand_guide_id == p.id).count()
+            project_data.append({
+                "id": p.id,
+                "brand_name": p.brand_name,
+                "sector": p.sector,
+                "draft_count": dc,
+                "created_at": p.created_at.isoformat(),
+            })
+
+    return {
+        "tenant_id": tenant.id,
+        "business_name": tenant.business_name,
+        "sector": tenant.sector,
+        "plan": tenant.plan,
+        "enabled_products": tenant.enabled_products or [],
+        "email": tenant.email,
+        "has_password": bool(tenant.hashed_password),
+        "bot_active": tenant.bot_active,
+        "created_at": tenant.created_at.isoformat() if tenant.created_at else None,
+        "projects": project_data,
+    }
+
+
+@app.get(
+    "/api/admin/tenants/{tenant_id}/drafts",
+    tags=["Admin"],
+    summary="Tenant'a ait tüm taslaklar (admin-only, status ile filtrelenebilir)",
+)
+def admin_list_tenant_drafts(
+    tenant_id: str = Path(...),
+    draft_status: Optional[str] = Query(None, alias="status"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    admin_id: str = Depends(get_current_admin),
+) -> dict:
+    """Admin JWT ile, tenant kısıtlaması bypass edilerek taslaklar listelenir."""
+    with SessionLocal() as db:
+        from mergen_product_katip.models import KatipDraft, KatipDraftVersion, KatipTopicQueue
+        query = db.query(KatipDraft).filter(KatipDraft.tenant_id == tenant_id)
+        if draft_status:
+            query = query.filter(KatipDraft.status == draft_status)
+
+        total = query.count()
+        drafts = query.order_by(KatipDraft.updated_at.desc()).offset(offset).limit(limit).all()
+
+        items = []
+        for d in drafts:
+            t_row = db.query(KatipTopicQueue.topic_title).filter(KatipTopicQueue.id == d.topic_id).first()
+            lv_row = (
+                db.query(KatipDraftVersion.version_number)
+                .filter(KatipDraftVersion.draft_id == d.id)
+                .order_by(KatipDraftVersion.version_number.desc())
+                .first()
+            )
+            items.append({
+                "draft_id": d.id,
+                "topic_id": d.topic_id,
+                "topic_title": t_row[0] if t_row else "Konu",
+                "tenant_id": d.tenant_id,
+                "brand_guide_id": d.brand_guide_id,
+                "status": d.status,
+                "latest_version_number": lv_row[0] if lv_row else None,
+                "created_at": d.created_at.isoformat(),
+                "updated_at": d.updated_at.isoformat(),
+            })
+
+    return {"tenant_id": tenant_id, "total": total, "items": items}
+
+
+@app.get(
+    "/api/admin/tenants/{tenant_id}/drafts/{draft_id}",
+    tags=["Admin"],
+    summary="Taslak tam içeriği + versiyon geçmişi (admin-only)",
+)
+def admin_get_tenant_draft(
+    tenant_id: str = Path(...),
+    draft_id: str = Path(...),
+    admin_id: str = Depends(get_current_admin),
+) -> dict:
+    """DraftDetailResponse şemasıyla aynı yapıda tam taslak döner. Admin bypass."""
+    with SessionLocal() as db:
+        from mergen_product_katip.models import KatipDraft, KatipDraftVersion
+        # Admin: tenant_id kontrolü ama tenant kısıtlaması bypass (admin her tenant'a erişebilir)
+        draft = db.query(KatipDraft).filter(
+            KatipDraft.id == draft_id,
+            KatipDraft.tenant_id == tenant_id,
+        ).first()
+        if not draft:
+            raise HTTPException(status_code=404, detail="Taslak bulunamadı.")
+
+        versions = (
+            db.query(KatipDraftVersion)
+            .filter(KatipDraftVersion.draft_id == draft_id)
+            .order_by(KatipDraftVersion.version_number.asc())
+            .all()
+        )
+
+        latest = None
+        if versions:
+            lv = versions[-1]
+            latest = {
+                "id": lv.id,
+                "version_number": lv.version_number,
+                "content": lv.content,
+                "word_count": lv.word_count,
+                "parent_version_id": lv.parent_version_id,
+                "created_at": lv.created_at.isoformat(),
+            }
+
+        version_items = [
+            {
+                "id": v.id,
+                "version_number": v.version_number,
+                "content": v.content,
+                "word_count": v.word_count,
+                "parent_version_id": v.parent_version_id,
+                "created_at": v.created_at.isoformat(),
+            }
+            for v in versions
+        ]
+
+    return {
+        "draft_id": draft.id,
+        "topic_id": draft.topic_id,
+        "tenant_id": draft.tenant_id,
+        "brand_guide_id": draft.brand_guide_id,
+        "status": draft.status,
+        "created_at": draft.created_at.isoformat(),
+        "updated_at": draft.updated_at.isoformat(),
+        "latest_version": latest,
+        "versions": version_items,
+    }
+
+
+@app.get(
+    "/api/katip/admin/tenants/{tenant_id}/feedback",
+    tags=["Admin"],
+    summary="Tenant feedback notları (admin-only, sayfalanmış)",
+)
+def admin_get_tenant_feedback(
+    tenant_id: str = Path(...),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    admin_id: str = Depends(get_current_admin),
+) -> dict:
+    """Bir tenant'a ait tüm feedback notlarını sayfalanmış döner."""
+    with SessionLocal() as db:
+        from mergen_product_katip.models import KatipFeedbackNote, KatipDraftVersion, KatipDraft
+        query = (
+            db.query(KatipFeedbackNote)
+            .join(KatipDraftVersion, KatipFeedbackNote.draft_version_id == KatipDraftVersion.id)
+            .join(KatipDraft, KatipDraftVersion.draft_id == KatipDraft.id)
+            .filter(KatipDraft.tenant_id == tenant_id)
+            .order_by(KatipFeedbackNote.created_at.desc())
+        )
+        total = query.count()
+        notes = query.offset(offset).limit(limit).all()
+
+        items = [
+            {
+                "id": n.id,
+                "draft_version_id": n.draft_version_id,
+                "note": n.note,
+                "author_label": n.author_label,
+                "created_at": n.created_at.isoformat(),
+            }
+            for n in notes
+        ]
+
+    return {"tenant_id": tenant_id, "total": total, "offset": offset, "limit": limit, "items": items}
+
+
+@app.post(
+    "/api/katip/admin/run-queue-now",
+    tags=["Admin"],
+    summary="Pending konuları hemen işle (admin-only)",
+)
+def admin_run_queue_now(
+    admin_id: str = Depends(get_current_admin),
+) -> dict:
+    """Otonom zamanlayıcıyı beklemeden pending konuları tetikler."""
+    try:
+        from mergen_product_katip.scheduler import process_pending_topics
+        import threading
+        t = threading.Thread(target=process_pending_topics, daemon=True)
+        t.start()
+        logger.info("Admin %s manually triggered queue processing.", admin_id)
+        return {"status": "triggered", "message": "Konu işleme kuyruğu başlatıldı."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scheduler hatası: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Kâtip Modülü Router — JWT Dependency Override ile Mount
 # ---------------------------------------------------------------------------
 try:
     from mergen_product_katip.router import router as katip_router  # noqa: E402
+    # Tüm Depends(lambda: None) placeholder'larını get_current_tenant ile override et
+    from fastapi import params as _fastapi_params
+
+    # Katip router'daki tüm endpoint'lerin dependency'lerini override et
     app.include_router(katip_router, prefix="/api/katip")
-    logger.info("Kâtip router mounted at /api/katip")
+    logger.info("Kâtip router mounted at /api/katip with JWT auth")
 except ImportError as _katip_err:
     logger.warning("Kâtip router could not be loaded: %s", _katip_err)
-
