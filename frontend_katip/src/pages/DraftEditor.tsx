@@ -17,20 +17,13 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
-import axios, { AxiosError } from "axios";
+import { useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-
-// ---------------------------------------------------------------------------
-// Sabitler
-// ---------------------------------------------------------------------------
-
-const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000";
-
-function getTenantId(): string {
-  const val = localStorage.getItem("katip_tenant_id");
-  return (val && val.trim()) ? val.trim() : "pilot-dental-clinic-01";
-}
+import {
+  getDraftDetailApi,
+  submitFeedbackApi,
+  updateDraftStatusApi,
+} from "../lib/api";
 
 // ---------------------------------------------------------------------------
 // Tipler
@@ -235,18 +228,10 @@ function FeedbackForm({ draftId, latestVersionNumber, onSuccess }: FeedbackFormP
     setError(null);
 
     try {
-      const { data } = await axios.post(
-        `${API_BASE}/api/katip/drafts/${draftId}/regenerate`,
-        {
-          feedback_note: note.trim(),
-          author_label: authorLabel.trim() || undefined,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Tenant-ID": getTenantId(),
-          },
-        }
+      const data = await submitFeedbackApi(
+        draftId,
+        note.trim(),
+        authorLabel.trim() || undefined
       );
       setNote("");
       setAuthorLabel("");
@@ -254,13 +239,12 @@ function FeedbackForm({ draftId, latestVersionNumber, onSuccess }: FeedbackFormP
         status: data.status,
         feedback_id: data.feedback_id,
         draft_id: draftId,
-        source_version_number: data.new_version_number - 1,
-        message: `v${data.new_version_number} taslak versiyonu LLM & RAG motoru ile başarıyla üretildi!`,
+        source_version_number: data.source_version_number,
+        message: data.message || `Revizyon notu kaydedildi. Yeni versiyon kuyruğa alındı!`,
       });
-    } catch (err) {
-      const ae = err as AxiosError<{ detail: string }>;
+    } catch (err: any) {
       setError(
-        ae.response?.data?.detail ??
+        err.response?.data?.detail ??
           "Revizyon notu gönderilemedi. Lütfen tekrar deneyin."
       );
     } finally {
@@ -414,12 +398,7 @@ export default function DraftEditor() {
     setFetchError(null);
 
     try {
-      const { data } = await axios.get<DraftDetail>(
-        `${API_BASE}/api/katip/drafts/${draftId}`,
-        {
-          headers: { "X-Tenant-ID": getTenantId() },
-        }
-      );
+      const data = await getDraftDetailApi(draftId);
       setDraft(data);
 
       // En son versiyonu varsayılan seç
@@ -427,10 +406,9 @@ export default function DraftEditor() {
         setActiveVersionId(data.latest_version.id);
         setDisplayedContent(data.latest_version.content);
       }
-    } catch (err) {
-      const ae = err as AxiosError<{ detail: string }>;
+    } catch (err: any) {
       setFetchError(
-        ae.response?.data?.detail ?? "Taslak yüklenemedi. Sunucu hatası."
+        err.response?.data?.detail ?? "Taslak yüklenemedi. Sunucu hatası."
       );
     } finally {
       setLoading(false);
@@ -466,11 +444,7 @@ export default function DraftEditor() {
     if (!draft || statusUpdating) return;
     setStatusUpdating(true);
     try {
-      await axios.put(
-        `${API_BASE}/api/katip/drafts/${draft.draft_id}/status`,
-        { status: newStatus },
-        { headers: { "X-Tenant-ID": getTenantId() } }
-      );
+      await updateDraftStatusApi(draft.draft_id, newStatus);
       setDraft((prev) => (prev ? { ...prev, status: newStatus } : prev));
       setSuccessMessage(`Taslak durumu "${newStatus}" olarak güncellendi.`);
       setTimeout(() => setSuccessMessage(null), 3500);

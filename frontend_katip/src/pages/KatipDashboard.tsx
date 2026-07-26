@@ -13,17 +13,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import axios, { AxiosError } from "axios";
-
-const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000";
-
-function getTenantId(): string {
-  return localStorage.getItem("katip_tenant_id") ?? "pilot-dental-clinic-01";
-}
-
-function setTenantId(id: string): void {
-  localStorage.setItem("katip_tenant_id", id.trim());
-}
+import {
+  getProjectsApi,
+  createProjectApi,
+  getTopicsApi,
+  createTopicApi,
+  getDraftsApi,
+  removeToken,
+  api,
+} from "../lib/api";
 
 // ---------------------------------------------------------------------------
 // Tipler
@@ -142,12 +140,6 @@ function DraftStatusBadge({ status }: { status: string }) {
 export default function KatipDashboard() {
   const navigate = useNavigate();
 
-  // Tenant state
-  const [currentTenant, setCurrentTenant] = useState<string>(getTenantId());
-  const [tenantInput, setTenantInput] = useState<string>(getTenantId());
-  const [isEditingTenant, setIsEditingTenant] = useState(false);
-  const [registeredTenants, setRegisteredTenants] = useState<{ tenant_id: string; business_name: string }[]>([]);
-
   // Multi-Project state
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
@@ -155,23 +147,9 @@ export default function KatipDashboard() {
   const [newBrandName, setNewBrandName] = useState("");
   const [newSector, setNewSector] = useState("dental_clinic");
 
-  // Registered Tenants List Fetch
-  const fetchRegisteredTenants = useCallback(async () => {
-    try {
-      const { data } = await axios.get<{ items: { tenant_id: string; business_name: string }[] }>(
-        `${API_BASE}/api/katip/tenants`
-      );
-      setRegisteredTenants(data.items ?? []);
-    } catch (_e) {
-      console.log("Katip tenants fetch warning", _e);
-    }
-  }, []);
-
   const fetchProjects = useCallback(async () => {
     try {
-      const { data } = await axios.get<{ items: ProjectItem[] }>(`${API_BASE}/api/katip/projects`, {
-        headers: { "X-Tenant-ID": currentTenant },
-      });
+      const data = await getProjectsApi();
       const items = data.items ?? [];
       setProjects(items);
       if (items.length > 0 && !selectedProjectId) {
@@ -180,12 +158,11 @@ export default function KatipDashboard() {
     } catch (_e) {
       console.log("Katip projects fetch warning", _e);
     }
-  }, [currentTenant, selectedProjectId]);
+  }, [selectedProjectId]);
 
   useEffect(() => {
-    fetchRegisteredTenants();
     fetchProjects();
-  }, [fetchRegisteredTenants, fetchProjects]);
+  }, [fetchProjects]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"topics" | "drafts">("topics");
@@ -224,39 +201,31 @@ export default function KatipDashboard() {
   const fetchTopics = useCallback(async () => {
     setTopicsLoading(true);
     try {
-      const url = selectedProjectId 
-        ? `${API_BASE}/api/katip/topics?brand_guide_id=${selectedProjectId}`
-        : `${API_BASE}/api/katip/topics`;
-      const { data } = await axios.get<TopicsResponse>(url, {
-        headers: { "X-Tenant-ID": currentTenant },
+      const data = await getTopicsApi({
+        brand_guide_id: selectedProjectId || undefined,
       });
       setTopics(data.items);
-    } catch (err) {
-      const ae = err as AxiosError<{ detail: string }>;
-      showNotify("error", ae.response?.data?.detail ?? "Konu kuyruğu yüklenemedi.");
+    } catch (err: any) {
+      showNotify("error", err.response?.data?.detail ?? "Konu kuyruğu yüklenemedi.");
     } finally {
       setTopicsLoading(false);
     }
-  }, [currentTenant, selectedProjectId]);
+  }, [selectedProjectId]);
 
   const fetchDrafts = useCallback(async () => {
     setDraftsLoading(true);
     try {
-      let url = `${API_BASE}/api/katip/drafts?`;
-      if (selectedProjectId) url += `brand_guide_id=${selectedProjectId}&`;
-      if (draftStatusFilter !== "all") url += `draft_status=${draftStatusFilter}&`;
-
-      const { data } = await axios.get<DraftsListResponse>(url, {
-        headers: { "X-Tenant-ID": currentTenant },
+      const data = await getDraftsApi({
+        brand_guide_id: selectedProjectId || undefined,
+        draft_status: draftStatusFilter !== "all" ? draftStatusFilter : undefined,
       });
       setDrafts(data.items);
-    } catch (err) {
-      const ae = err as AxiosError<{ detail: string }>;
-      showNotify("error", ae.response?.data?.detail ?? "Taslaklar yüklenemedi.");
+    } catch (err: any) {
+      showNotify("error", err.response?.data?.detail ?? "Taslaklar yüklenemedi.");
     } finally {
       setDraftsLoading(false);
     }
-  }, [currentTenant, selectedProjectId, draftStatusFilter]);
+  }, [selectedProjectId, draftStatusFilter]);
 
   useEffect(() => {
     if (activeTab === "topics") {
@@ -266,62 +235,48 @@ export default function KatipDashboard() {
     }
   }, [activeTab, selectedProjectId, fetchTopics, fetchDrafts]);
 
-  // Tenant Değiştirme
-  const handleSaveTenant = () => {
-    if (!tenantInput.trim()) return;
-    setTenantId(tenantInput);
-    setCurrentTenant(tenantInput.trim());
-    setIsEditingTenant(false);
-    showNotify("success", `Tenant "${tenantInput.trim()}" olarak güncellendi.`);
+  // Logout
+  const handleLogout = () => {
+    removeToken();
+    navigate("/login");
   };
 
   // 1-Tıkla Taslak Üretimi (POST /api/katip/drafts/generate)
   const handleGenerateDraft = async (topicId: string, topicTitle: string) => {
     setGeneratingTopicId(topicId);
     try {
-      const { data } = await axios.post(
-        `${API_BASE}/api/katip/drafts/generate`,
-        { topic_id: topicId },
-        { headers: { "X-Tenant-ID": currentTenant } }
-      );
-
+      const response = await api.post("/katip/drafts/generate", { topic_id: topicId });
+      const data = response.data;
       if (data.status === "success" || data.status === "already_processed") {
         showNotify("success", `'${topicTitle}' için v${data.version_number} taslağı başarıyla üretildi!`);
         fetchTopics();
-        // İsteğe bağlı hemen editöre git
         navigate(`/drafts/${data.draft_id}`);
       }
-    } catch (err) {
-      const ae = err as AxiosError<{ detail: string }>;
-      showNotify("error", ae.response?.data?.detail ?? "Taslak üretimi sırasında hata oluştu.");
+    } catch (err: any) {
+      showNotify("error", err.response?.data?.detail ?? "Taslak üretimi sırasında hata oluştu.");
     } finally {
       setGeneratingTopicId(null);
     }
   };
 
-  // Yeni Marka/Proje Oluşturma (POST /api/katip/projects)
+  // Yeni Marka/Proje Oluşturma
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBrandName.trim()) return;
 
     try {
-      const { data } = await axios.post(
-        `${API_BASE}/api/katip/projects`,
-        {
-          brand_name: newBrandName.trim(),
-          sector: newSector,
-        },
-        { headers: { "X-Tenant-ID": currentTenant } }
-      );
+      const data = await createProjectApi({
+        brand_name: newBrandName.trim(),
+        sector: newSector,
+      });
 
       showNotify("success", `Yeni marka projesi eklendi: "${data.brand_name}"`);
       setNewBrandName("");
       setShowAddProjectModal(false);
       fetchProjects();
       setSelectedProjectId(data.id);
-    } catch (err) {
-      const ae = err as AxiosError<{ detail: string }>;
-      showNotify("error", ae.response?.data?.detail ?? "Proje eklenemedi.");
+    } catch (err: any) {
+      showNotify("error", err.response?.data?.detail ?? "Proje eklenemedi.");
     }
   };
 
@@ -362,16 +317,12 @@ export default function KatipDashboard() {
         .filter(Boolean);
 
       for (const tTitle of titlesToSubmit) {
-        await axios.post(
-          `${API_BASE}/api/katip/topics`,
-          {
-            topic_title: tTitle,
-            brand_guide_id: selectedProjectId || undefined,
-            target_keywords: keywordsArray.length ? keywordsArray : undefined,
-            priority: newPriority,
-          },
-          { headers: { "X-Tenant-ID": currentTenant } }
-        );
+        await createTopicApi({
+          topic_title: tTitle,
+          brand_guide_id: selectedProjectId || undefined,
+          target_keywords: keywordsArray.length ? keywordsArray : undefined,
+          priority: newPriority,
+        });
       }
 
       showNotify("success", `${titlesToSubmit.length} konu başarıyla kuyruğa eklendi!`);
@@ -382,9 +333,8 @@ export default function KatipDashboard() {
       setNewPriority(5);
       setShowAddTopicModal(false);
       fetchTopics();
-    } catch (err) {
-      const ae = err as AxiosError<{ detail: string }>;
-      showNotify("error", ae.response?.data?.detail ?? "Konu eklenemedi.");
+    } catch (err: any) {
+      showNotify("error", err.response?.data?.detail ?? "Konu eklenemedi.");
     } finally {
       setAddTopicSubmitting(false);
     }
@@ -436,55 +386,15 @@ export default function KatipDashboard() {
               onClick={() => setShowAddProjectModal(true)}
               className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all"
             >
-              + Proje Ekle
+              + Yeni Proje Ekle
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900/80 text-red-300 border border-red-800/80 rounded-lg text-xs font-semibold transition-all ml-2 flex items-center gap-1"
+            >
+              🚪 Çıkış Yap
             </button>
           </div>
-
-          {/* TENANT SEÇİCİ */}
-          <div className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-1.5">
-            <span className="text-xs text-slate-400 font-semibold">Ajans Hesabı:</span>
-            <select
-              value={currentTenant}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "__custom__") {
-                  setIsEditingTenant(true);
-                } else {
-                  setTenantId(val);
-                  setCurrentTenant(val);
-                  setTenantInput(val);
-                  setIsEditingTenant(false);
-                  showNotify("success", `Müşteri "${val}" olarak değiştirildi.`);
-                }
-              }}
-              className="bg-slate-900 border border-slate-600 rounded-lg px-2.5 py-1 text-xs text-blue-300 font-mono font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
-            >
-              {registeredTenants.map((t) => (
-                <option key={t.tenant_id} value={t.tenant_id}>
-                  {t.business_name}
-                </option>
-              ))}
-              <option value="pilot-dental-clinic-01">Pilot Diş Kliniği</option>
-              <option value="__custom__">+ Manuel ID...</option>
-            </select>
-          </div>
-          {isEditingTenant && (
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Örn: dumedan-ajans-1"
-                value={tenantInput}
-                onChange={(e) => setTenantInput(e.target.value)}
-                className="bg-slate-900 border border-slate-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-              />
-              <button
-                onClick={handleSaveTenant}
-                className="px-2 py-0.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-500"
-              >
-                Kaydet
-              </button>
-            </div>
-          )}
         </div>
       </header>
 
