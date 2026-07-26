@@ -164,7 +164,8 @@ export default function Dashboard() {
                           t.tenant_id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
     const matchesSector = !filterSector || t.sector === filterSector;
-    const matchesProduct = !filterProduct || t.product === filterProduct;
+    const matchesProduct = !filterProduct || 
+      (t.enabled_products ? t.enabled_products.includes(filterProduct) : t.product === filterProduct);
     return matchesSearch && matchesStatus && matchesSector && matchesProduct;
   });
 
@@ -362,7 +363,7 @@ export default function Dashboard() {
                     </td>
                     <td className="py-4 px-6">
                       <span className="bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider font-semibold">
-                        {t.product}
+                        {(t.enabled_products && t.enabled_products.length > 0) ? t.enabled_products.join(', ') : (t.product || 'desk')}
                       </span>
                     </td>
                     <td className="py-4 px-6">

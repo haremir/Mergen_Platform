@@ -1,69 +1,94 @@
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  FileText, Layers, CheckCircle2, RefreshCw, Cpu, Bot, Plus, Tag, Sparkles
+  FileText, RefreshCw, Key, Eye, UserCheck, Search, X
 } from 'lucide-react';
+import { 
+  adminGetTenants, 
+  adminGetTenant, 
+  adminGetTenantDrafts, 
+  adminGetTenantDraft,
+  adminSetTenantPassword as setPasswordApi
+} from '../api';
 
-const API_BASE = 'http://localhost:8000';
-
-interface ProjectItem {
-  id: string;
+interface AdminTenantItem {
   tenant_id: string;
-  brand_name: string;
+  business_name: string;
   sector: string;
-  tone_rules?: string[];
-  forbidden_words?: string[];
-  is_default: boolean;
+  plan: string;
+  enabled_products: string[];
+  email?: string;
+  has_password: boolean;
+  project_count: number;
+  draft_count: number;
+  created_at: string;
+  bot_active: boolean;
 }
 
-interface TopicItem {
+interface ProjectSummary {
   id: string;
-  tenant_id: string;
-  brand_guide_id?: string;
-  topic_title: string;
-  target_keywords?: string[];
-  status: string;
-  priority: number;
+  brand_name: string;
+  sector: string;
+  draft_count: number;
   created_at: string;
 }
 
-interface DraftItem {
+interface DraftSummary {
   draft_id: string;
   topic_id: string;
+  topic_title: string;
   tenant_id: string;
   brand_guide_id?: string;
   status: string;
-  latest_version_number: number;
+  latest_version_number?: number;
   created_at: string;
   updated_at: string;
 }
 
 export default function KatipOverview() {
-  const [currentTenant] = useState<string>('pilot-dental-clinic-01');
-  const [projects, setProjects] = useState<ProjectItem[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  
-  // Modals
-  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
-  const [newBrandName, setNewBrandName] = useState('');
-  const [newSector, setNewSector] = useState('dental_clinic');
+  const { tenantId: routeTenantId } = useParams<{ tenantId?: string }>();
+  const navigate = useNavigate();
 
-  const [showAddTopicModal, setShowAddTopicModal] = useState(false);
-  const [topicChips, setTopicChips] = useState<string[]>([]);
-  const [topicInput, setTopicInput] = useState('');
-  const [newKeywords, setNewKeywords] = useState('');
-  const [newPriority] = useState(5);
-  const [addTopicSubmitting, setAddTopicSubmitting] = useState(false);
+  const [tenants, setTenants] = useState<AdminTenantItem[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>(routeTenantId || '');
+  const [selectedTenantDetails, setSelectedTenantDetails] = useState<{
+    tenant_id: string;
+    business_name: string;
+    sector: string;
+    plan: string;
+    email?: string;
+    has_password: boolean;
+    projects: ProjectSummary[];
+  } | null>(null);
 
-  // Lists
-  const [topics, setTopics] = useState<TopicItem[]>([]);
-  const [topicsLoading, setTopicsLoading] = useState(false);
-  const [drafts, setDrafts] = useState<DraftItem[]>([]);
-  const [draftsLoading, setDraftsLoading] = useState(false);
-  const [draftStatusFilter] = useState<string>('all');
-  const [generatingTopicId, setGeneratingTopicId] = useState<string | null>(null);
+  useEffect(() => {
+    if (routeTenantId && routeTenantId !== selectedTenantId) {
+      setSelectedTenantId(routeTenantId);
+    }
+  }, [routeTenantId]);
 
-  const [activeTab, setActiveTab] = useState<'topics' | 'drafts'>('topics');
+  const handleSelectTenant = (tid: string) => {
+    setSelectedTenantId(tid);
+    navigate(`/bayiler/${tid}`);
+  };
+
+  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Set Password Modal State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [targetTenantId, setTargetTenantId] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Selected Draft Detail Modal State
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [selectedDraftDetail, setSelectedDraftDetail] = useState<any>(null);
+  const [draftDetailLoading, setDraftDetailLoading] = useState(false);
+
+  // Notification state
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const showNotify = (type: 'success' | 'error', message: string) => {
@@ -71,481 +96,418 @@ export default function KatipOverview() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Fetch Projects
-  const fetchProjects = useCallback(async () => {
+  // Fetch all tenants
+  const fetchTenantsList = useCallback(async () => {
+    setLoading(true);
     try {
-      const { data } = await axios.get<{ items: ProjectItem[] }>(`${API_BASE}/api/katip/projects`, {
-        headers: { 'X-Tenant-ID': currentTenant },
-      });
-      const items = data.items ?? [];
-      setProjects(items);
-      if (items.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(items[0].id);
-      }
-    } catch (_e) {
-      console.warn("Katip projects fetch error", _e);
-    }
-  }, [currentTenant, selectedProjectId]);
-
-  // Fetch Topics
-  const fetchTopics = useCallback(async () => {
-    setTopicsLoading(true);
-    try {
-      const { data } = await axios.get<{ items: TopicItem[] }>(`${API_BASE}/api/katip/topics`, {
-        headers: { 'X-Tenant-ID': currentTenant },
-        params: selectedProjectId ? { brand_guide_id: selectedProjectId } : {},
-      });
-      setTopics(data.items ?? []);
-    } catch (_e) {
-      console.warn("Katip topics fetch error", _e);
-    } finally {
-      setTopicsLoading(false);
-    }
-  }, [currentTenant, selectedProjectId]);
-
-  // Fetch Drafts
-  const fetchDrafts = useCallback(async () => {
-    setDraftsLoading(true);
-    try {
-      const params: Record<string, string> = {};
-      if (draftStatusFilter !== 'all') params.status_filter = draftStatusFilter;
-      if (selectedProjectId) params.brand_guide_id = selectedProjectId;
-
-      const { data } = await axios.get<{ items: DraftItem[] }>(`${API_BASE}/api/katip/drafts`, {
-        headers: { 'X-Tenant-ID': currentTenant },
-        params,
-      });
-      setDrafts(data.items ?? []);
-    } catch (_e) {
-      console.warn("Katip drafts fetch error", _e);
-    } finally {
-      setDraftsLoading(false);
-    }
-  }, [currentTenant, selectedProjectId, draftStatusFilter]);
-
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
-
-  useEffect(() => {
-    fetchTopics();
-    fetchDrafts();
-  }, [fetchTopics, fetchDrafts]);
-
-  // Handlers
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newBrandName.trim()) return;
-
-    try {
-      const { data } = await axios.post(
-        `${API_BASE}/api/katip/projects`,
-        { brand_name: newBrandName.trim(), sector: newSector },
-        { headers: { 'X-Tenant-ID': currentTenant } }
+      const data = await adminGetTenants();
+      const katipTenants = (data.items ?? []).filter((t: AdminTenantItem) => 
+        !t.enabled_products || t.enabled_products.includes('katip') || t.enabled_products.length === 0
       );
-      showNotify('success', `Yeni marka projesi eklendi: "${data.brand_name}"`);
-      setNewBrandName('');
-      setShowAddProjectModal(false);
-      fetchProjects();
-      setSelectedProjectId(data.id);
-    } catch (err: any) {
-      showNotify('error', err.response?.data?.detail ?? 'Proje eklenemedi.');
-    }
-  };
-
-  const handleAddChip = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      const val = topicInput.trim().replace(/,/g, '');
-      if (val && !topicChips.includes(val)) {
-        setTopicChips((prev) => [...prev, val]);
-        setTopicInput('');
+      setTenants(katipTenants);
+      if (katipTenants.length > 0 && !selectedTenantId) {
+        setSelectedTenantId(katipTenants[0].tenant_id);
       }
+    } catch (err: any) {
+      showNotify('error', err.response?.data?.detail ?? 'Kiracı listesi çekilemedi.');
+    } finally {
+      setLoading(false);
     }
+  }, [selectedTenantId]);
+
+  // Fetch details for selected tenant
+  const fetchTenantDetails = useCallback(async (tid: string) => {
+    if (!tid) return;
+    try {
+      const [detailsData, draftsData] = await Promise.all([
+        adminGetTenant(tid),
+        adminGetTenantDrafts(tid),
+      ]);
+      setSelectedTenantDetails(detailsData);
+      setDrafts(draftsData.items ?? []);
+    } catch (err: any) {
+      showNotify('error', err.response?.data?.detail ?? 'Kiracı detayı veya taslakları yüklenemedi.');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTenantsList();
+  }, [fetchTenantsList]);
+
+  useEffect(() => {
+    if (selectedTenantId) {
+      fetchTenantDetails(selectedTenantId);
+    }
+  }, [selectedTenantId, fetchTenantDetails]);
+
+  // Open set password modal
+  const handleOpenPasswordModal = (tenant: AdminTenantItem) => {
+    setTargetTenantId(tenant.tenant_id);
+    setEmailInput(tenant.email || `${tenant.tenant_id}@ajans.com`);
+    setPasswordInput('');
+    setShowPasswordModal(true);
   };
 
-  const handleRemoveChip = (indexToRemove: number) => {
-    setTopicChips((prev) => prev.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  const handleCreateTopic = async (e: React.FormEvent) => {
+  // Submit set password
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalTitles = [...topicChips];
-    if (topicInput.trim()) finalTitles.push(topicInput.trim());
-
-    if (finalTitles.length === 0) {
-      showNotify('error', 'Lütfen en az bir konu başlığı ekleyin.');
+    if (!targetTenantId || !emailInput || !passwordInput) {
+      showNotify('error', 'Lütfen tüm alanları doldurun.');
       return;
     }
-
-    setAddTopicSubmitting(true);
+    setPasswordLoading(true);
     try {
-      const keywordsArray = newKeywords.split(',').map((k) => k.trim()).filter(Boolean);
-      for (const tTitle of finalTitles) {
-        await axios.post(
-          `${API_BASE}/api/katip/topics`,
-          {
-            topic_title: tTitle,
-            brand_guide_id: selectedProjectId || undefined,
-            target_keywords: keywordsArray.length ? keywordsArray : undefined,
-            priority: newPriority,
-          },
-          { headers: { 'X-Tenant-ID': currentTenant } }
-        );
+      await setPasswordApi(targetTenantId, emailInput.trim(), passwordInput);
+      showNotify('success', `Kiracı (${targetTenantId}) için e-posta ve şifre başarıyla güncellendi!`);
+      setShowPasswordModal(false);
+      fetchTenantsList();
+      if (selectedTenantId === targetTenantId) {
+        fetchTenantDetails(targetTenantId);
       }
-      showNotify('success', `${finalTitles.length} konu kuyruğa eklendi!`);
-      setTopicChips([]);
-      setTopicInput('');
-      setNewKeywords('');
-      setShowAddTopicModal(false);
-      fetchTopics();
     } catch (err: any) {
-      showNotify('error', err.response?.data?.detail ?? 'Konu eklenemedi.');
+      showNotify('error', err.response?.data?.detail ?? 'Şifre atama hatası.');
     } finally {
-      setAddTopicSubmitting(false);
+      setPasswordLoading(false);
     }
   };
 
-  const handleGenerateDraft = async (topicId: string) => {
-    setGeneratingTopicId(topicId);
+  // View draft detail
+  const handleViewDraftDetail = async (draftId: string) => {
+    if (!selectedTenantId || !draftId) return;
+    setDraftDetailLoading(true);
+    setShowDraftModal(true);
     try {
-      await axios.post(
-        `${API_BASE}/api/katip/drafts/generate`,
-        { topic_id: topicId },
-        { headers: { 'X-Tenant-ID': currentTenant } }
-      );
-      showNotify('success', 'Taslak başarıyla üretildi ve incelemeye alındı!');
-      fetchTopics();
-      fetchDrafts();
-      setActiveTab('drafts');
+      const data = await adminGetTenantDraft(selectedTenantId, draftId);
+      setSelectedDraftDetail(data);
     } catch (err: any) {
-      showNotify('error', err.response?.data?.detail ?? 'Taslak üretilemedi.');
+      showNotify('error', err.response?.data?.detail ?? 'Taslak detayı çekilemedi.');
+      setShowDraftModal(false);
     } finally {
-      setGeneratingTopicId(null);
+      setDraftDetailLoading(false);
     }
   };
+
+  const filteredTenants = tenants.filter(t => 
+    t.business_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.tenant_id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto font-sans">
+    <div className="space-y-6">
+      {/* Top Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-xl text-xl font-bold">
+              ✍️
+            </span>
+            <div>
+              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                Süper Admin — Kâtip Ajans & Bayi Yönetimi
+                <span className="text-xs bg-indigo-900/60 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded font-mono">
+                  B2B SaaS
+                </span>
+              </h1>
+              <p className="text-slate-400 text-xs mt-0.5">
+                Kâtip ürününü kullanan ajansları, alt markalarını ve taslak içeriklerini tek noktadan denetleyin.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={fetchTenantsList}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-semibold flex items-center gap-2 transition-all"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Yenile
+        </button>
+      </div>
+
       {/* Notifications */}
       {notification && (
-        <div className={`p-4 rounded-xl text-sm font-semibold border flex items-center justify-between ${
-          notification.type === 'success' ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' : 'bg-red-950/60 border-red-700 text-red-300'
+        <div className={`p-4 rounded-xl text-sm border flex items-center gap-3 ${
+          notification.type === 'success' 
+            ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800' 
+            : 'bg-red-950/60 text-red-300 border-red-800'
         }`}>
-          <span>{notification.message}</span>
-          <button onClick={() => setNotification(null)}>✕</button>
+          <span>{notification.type === 'success' ? '✅' : '⚠️'}</span>
+          <div>{notification.message}</div>
         </div>
       )}
 
-      {/* ── HEADER & PROJECT SWITCHER ────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/30 shrink-0">
-            <FileText className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-              Mergen Kâtip Yönetim Paneli
-              <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-blue-900/40 text-blue-400 border border-blue-800/60">
-                Multi-Tenant B2B
-              </span>
-            </h1>
-            <p className="text-slate-400 text-sm mt-0.5">
-              Ajanslar için Otonom SEO & Blog İçerik Motoru ve Marka İzolasyonlu RAG Yönetimi
-            </p>
-          </div>
-        </div>
-
-        {/* ACTIVE BRAND/PROJECT DROP DOWN */}
-        <div className="flex items-center gap-3 bg-blue-950/40 border border-blue-800/60 rounded-xl px-4 py-2">
-          <Sparkles className="w-4 h-4 text-blue-400" />
-          <span className="text-xs text-blue-300 font-bold">Aktif Marka / Proje:</span>
-          <select
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="bg-slate-900 border border-blue-600/60 rounded-lg px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-blue-400 cursor-pointer"
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.brand_name} ({p.sector})
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => setShowAddProjectModal(true)}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md"
-          >
-            + Proje Ekle
-          </button>
-        </div>
-      </div>
-
-      {/* ── METRİK VE SİSTEM KARTLARI ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Kuyruktaki Konular</span>
-            <Cpu className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-amber-400">{topics.length}</div>
-          <p className="text-xs text-slate-500">Üretim İçin Sıralandı</p>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Üretilen Taslaklar</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-emerald-400">{drafts.length}</div>
-          <p className="text-xs text-slate-500">İnceleme & Onay Bekliyor</p>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Aktif Marka Projeleri</span>
-            <Layers className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-purple-400">{projects.length}</div>
-          <p className="text-xs text-slate-500">İzole RAG Hafızası</p>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>LLM Gateway</span>
-            <Bot className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-xl font-bold text-white">Qwen 2.5 32B</div>
-          <p className="text-xs text-slate-500">English XML Guardrails</p>
-        </div>
-      </div>
-
-      {/* ── TAB & ACTIONS ─────────────────────────────────────────────────── */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
-            <button
-              onClick={() => setActiveTab('topics')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'topics' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Konu Kuyruğu ({topics.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('drafts')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'drafts' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Taslaklar ({drafts.length})
-            </button>
+      {/* Grid: Tenant Select & Projects / Drafts View */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left Column: Tenant Master List */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-indigo-400" />
+              Kâtip Kullanıcısı Ajanslar ({filteredTenants.length})
+            </h2>
           </div>
 
-          {activeTab === 'topics' && (
-            <button
-              onClick={() => setShowAddTopicModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30"
-            >
-              <Plus className="w-4 h-4" /> + Yeni Konu / Makale Ekle
-            </button>
-          )}
-        </div>
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Ajans adı veya Tenant ID ara..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
 
-        {/* TOPICS TAB CONTENT */}
-        {activeTab === 'topics' && (
-          <div>
-            {topicsLoading ? (
-              <div className="py-12 text-center text-slate-500">Konular yükleniyor...</div>
-            ) : topics.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 bg-slate-950/50 border border-slate-800 rounded-xl space-y-3">
-                <p>Seçili projede henüz konu bulunmuyor.</p>
-                <button
-                  onClick={() => setShowAddTopicModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg"
+          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+            {filteredTenants.map((t) => {
+              const isSelected = t.tenant_id === selectedTenantId;
+              return (
+                <div
+                  key={t.tenant_id}
+                  onClick={() => handleSelectTenant(t.tenant_id)}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                    isSelected
+                      ? 'bg-indigo-950/40 border-indigo-500/50 shadow-md'
+                      : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+                  }`}
                 >
-                  + İlk Konuyu Ekle
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {topics.map((t) => (
-                  <div
-                    key={t.id}
-                    className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-slate-700 transition-all"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded uppercase">
-                          {t.status}
-                        </span>
-                        <span className="text-xs font-bold text-blue-400 bg-blue-950 px-2 py-0.5 rounded border border-blue-800/40">
-                          Öncelik: {t.priority}
-                        </span>
-                      </div>
-                      <h4 className="text-white font-bold text-sm">{t.topic_title}</h4>
-                      {t.target_keywords && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                          <Tag className="w-3 h-3 text-slate-500" />
-                          <span>{t.target_keywords.join(', ')}</span>
-                        </div>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-white">{t.business_name}</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                      {t.tenant_id}
+                    </span>
+                  </div>
 
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-800/60">
+                    <span>Proje: <strong className="text-indigo-400">{t.project_count}</strong></span>
+                    <span>Taslak: <strong className="text-emerald-400">{t.draft_count}</strong></span>
                     <button
-                      onClick={() => handleGenerateDraft(t.id)}
-                      disabled={generatingTopicId === t.id}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-900/30 disabled:opacity-50 flex items-center gap-2 shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenPasswordModal(t);
+                      }}
+                      className="px-2 py-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded border border-indigo-500/40 text-[11px] font-semibold flex items-center gap-1"
                     >
-                      {generatingTopicId === t.id ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          Üretiliyor...
-                        </>
-                      ) : (
-                        <>⚡ Taslak Üret</>
-                      )}
+                      <Key className="w-3 h-3" />
+                      {t.has_password ? 'Şifre Güncelle' : 'Şifre Ata'}
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* DRAFTS TAB CONTENT */}
-        {activeTab === 'drafts' && (
-          <div>
-            {draftsLoading ? (
-              <div className="py-12 text-center text-slate-500">Taslaklar yükleniyor...</div>
-            ) : drafts.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 bg-slate-950/50 border border-slate-800 rounded-xl">
-                Henüz üretilmiş taslak bulunmuyor.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {drafts.map((d) => (
-                  <div
-                    key={d.draft_id}
-                    className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-blue-500/50 transition-all"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase border ${
-                          d.status === 'approved' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-900 text-slate-400 border-slate-700'
-                        }`}>
-                          {d.status}
-                        </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                          v{d.latest_version_number ?? 1}
-                        </span>
-                      </div>
-                      <h4 className="text-white font-bold text-sm">Taslak #{d.draft_id.slice(0, 8)}</h4>
-                    </div>
-
-                    <a
-                      href={`http://localhost:5174/#/drafts/${d.draft_id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
-                    >
-                      Taslağı İncele →
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── YENİ PROJE EKLEME MODALI ───────────────────────────────────────── */}
-      {showAddProjectModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="font-bold text-lg text-white border-b border-slate-800 pb-3">Yeni Marka / Proje Ekle</h3>
-            <form onSubmit={handleCreateProject} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Marka / Proje Adı *</label>
-                <input
-                  type="text"
-                  required
-                  value={newBrandName}
-                  onChange={(e) => setNewBrandName(e.target.value)}
-                  placeholder="Örn: DentSmile Klinik veya Elite İnşaat"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Sektör *</label>
-                <select
-                  value={newSector}
-                  onChange={(e) => setNewSector(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="dental_clinic">Diş Kliniği & Ağız Sağlığı</option>
-                  <option value="real_estate">Gayrimenkul & İnşaat</option>
-                  <option value="legal">Hukuk & Danışmanlık</option>
-                  <option value="ecommerce">E-Ticaret & Perakende</option>
-                  <option value="health">Sağlık & Medikal</option>
-                  <option value="tech">Teknoloji & Yazılım</option>
-                  <option value="general">Genel Sektör</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setShowAddProjectModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">İptal</button>
-                <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold">Proje Oluştur</button>
-              </div>
-            </form>
+                </div>
+              );
+            })}
           </div>
         </div>
-      )}
 
-      {/* ── YENİ KONU EKLEME MODALI (CHIPS) ───────────────────────────────── */}
-      {showAddTopicModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="font-bold text-lg text-white border-b border-slate-800 pb-3">Konu / Makale Ekle</h3>
-            <form onSubmit={handleCreateTopic} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Konu Başlıkları (Enter veya Virgül ile Ekleyin)</label>
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex flex-wrap gap-2 min-h-[80px]">
-                  {topicChips.map((chip, idx) => (
-                    <span key={idx} className="bg-blue-900/40 text-blue-300 border border-blue-700/60 text-xs px-3 py-1 rounded-full flex items-center gap-1">
-                      {chip}
-                      <button type="button" onClick={() => handleRemoveChip(idx)} className="text-blue-400 font-bold ml-1">×</button>
+        {/* Right Column: Selected Tenant Detail & Projects & Drafts */}
+        <div className="lg:col-span-2 space-y-6">
+          {selectedTenantDetails ? (
+            <>
+              {/* Tenant Header Info */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">{selectedTenantDetails.business_name}</h2>
+                    <p className="text-xs text-slate-400 font-mono">ID: {selectedTenantDetails.tenant_id}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">
+                      Plan: {selectedTenantDetails.plan}
                     </span>
-                  ))}
-                  <input
-                    type="text"
-                    value={topicInput}
-                    onChange={(e) => setTopicInput(e.target.value)}
-                    onKeyDown={handleAddChip}
-                    placeholder={topicChips.length === 0 ? "Örn. Zirkonyum Diş Kaplama (Enter)..." : "Başka konu ekle..."}
-                    className="flex-1 min-w-[180px] bg-transparent text-sm text-white focus:outline-none"
-                  />
+                    <button
+                      onClick={() => handleOpenPasswordModal({
+                        tenant_id: selectedTenantDetails.tenant_id,
+                        business_name: selectedTenantDetails.business_name,
+                        sector: selectedTenantDetails.sector,
+                        plan: selectedTenantDetails.plan,
+                        enabled_products: ['katip'],
+                        email: selectedTenantDetails.email,
+                        has_password: selectedTenantDetails.has_password,
+                        project_count: selectedTenantDetails.projects.length,
+                        draft_count: drafts.length,
+                        created_at: '',
+                        bot_active: true
+                      })}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      Giriş Şifresi Tanımla
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub-Projects Summary */}
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Alt Projeler / Markalar ({selectedTenantDetails.projects.length})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedTenantDetails.projects.map((p) => (
+                      <div key={p.id} className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">{p.brand_name}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-indigo-300 font-mono">
+                            {p.sector}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">Taslak İçerik: <strong className="text-slate-200">{p.draft_count}</strong></p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
+              {/* Drafts List for Tenant */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                  Üretilen Taslaklar ({drafts.length})
+                </h3>
+
+                {drafts.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 text-xs italic">
+                    Bu ajans henüz hiç taslak üretmemiş.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {drafts.map((d) => (
+                      <div key={d.draft_id} className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between gap-4 hover:border-slate-700 transition-colors">
+                        <div>
+                          <h4 className="text-xs font-bold text-white">{d.topic_title}</h4>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+                            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                              v{d.latest_version_number || 1}
+                            </span>
+                            <span className="capitalize text-indigo-400 font-semibold">{d.status}</span>
+                            <span>• {new Date(d.updated_at).toLocaleDateString('tr-TR')}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleViewDraftDetail(d.draft_id)}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Detay Gör
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-500 text-sm italic">
+              Lütfen soldaki listeden bir Ajans / Tenant seçin.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal: Set Password */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Key className="w-5 h-5 text-indigo-400" />
+                Kiracı Giriş Bilgileri Ata
+              </h3>
+              <button onClick={() => setShowPasswordModal(false)} className="text-slate-500 hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Bu ajansın Mergen Katip ekranına (`http://localhost:5174`) giriş yapabilmesi için e-posta ve şifre belirleyin.
+            </p>
+
+            <form onSubmit={handleSavePassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">SEO Anahtar Kelimeleri</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">E-posta</label>
                 <input
-                  type="text"
-                  value={newKeywords}
-                  onChange={(e) => setNewKeywords(e.target.value)}
-                  placeholder="zirkonyum, diş kaplama, estetik diş"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  required
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setShowAddTopicModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">İptal</button>
-                <button type="submit" disabled={addTopicSubmitting} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold disabled:opacity-50">
-                  {addTopicSubmitting ? "Ekleniyor..." : "⚡ Konuları Kuyruğa Ekle"}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Şifre</label>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="En az 6 karakter"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20"
+                >
+                  {passwordLoading ? 'Kaydediliyor...' : 'Kaydet'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: View Draft Detail */}
+      {showDraftModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] p-6 space-y-4 shadow-2xl overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-emerald-400" />
+                Taslak Detayı & Versiyon Geçmişi
+              </h3>
+              <button onClick={() => setShowDraftModal(false)} className="text-slate-500 hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {draftDetailLoading ? (
+              <div className="text-center py-12 text-slate-400 text-xs italic">
+                Taslak yükleniyor...
+              </div>
+            ) : selectedDraftDetail ? (
+              <div className="space-y-4 text-xs text-slate-300">
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">Taslak ID: {selectedDraftDetail.draft_id}</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 uppercase text-[10px] font-bold">
+                      {selectedDraftDetail.status}
+                    </span>
+                  </div>
+                  <p className="text-slate-400">Versiyon Sayısı: <strong>{selectedDraftDetail.versions?.length || 0}</strong></p>
+                </div>
+
+                {selectedDraftDetail.latest_version && (
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <h4 className="font-bold text-slate-200">En Son Üretilen İçerik (v{selectedDraftDetail.latest_version.version_number}):</h4>
+                    <div className="prose prose-invert max-w-none text-slate-300 text-xs bg-slate-900 p-4 rounded-lg font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
+                      {selectedDraftDetail.latest_version.content}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       )}

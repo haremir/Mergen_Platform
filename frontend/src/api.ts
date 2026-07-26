@@ -60,6 +60,7 @@ export interface TenantListEntry {
   business_name: string;
   sector: string;
   product: string;
+  enabled_products?: string[];
   plan: string;
   whatsapp_phone_number_id: string | null;
   created_at: string;
@@ -281,17 +282,73 @@ export interface KatipDraftsResponse {
   items: KatipDraftSummary[];
 }
 
-export async function getKatipTopics(tenantId: string): Promise<KatipTopicsResponse> {
-  const res = await api.get<KatipTopicsResponse>('/katip/topics', {
-    headers: { 'X-Tenant-ID': tenantId },
+export const ADMIN_TOKEN_KEY = "mergen_admin_jwt_token";
+
+export function getAdminToken(): string | null {
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+
+export function setAdminToken(token: string): void {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+
+export function removeAdminToken(): void {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+api.interceptors.request.use(
+  (config) => {
+    const token = getAdminToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && window.location.pathname !== '/login') {
+      removeAdminToken();
+    }
+    return Promise.reject(error);
+  }
+);
+
+export async function loginAdminApi(email: string, password: string) {
+  const res = await api.post('/auth/login', { email, password });
+  if (res.data.access_token) {
+    setAdminToken(res.data.access_token);
+  }
+  return res.data;
+}
+
+export async function adminSetTenantPassword(tenantId: string, email: string, password: string) {
+  const res = await api.post(`/admin/tenants/${tenantId}/set-password`, { email, password });
+  return res.data;
+}
+
+export async function adminGetTenants() {
+  const res = await api.get('/admin/tenants');
+  return res.data;
+}
+
+export async function adminGetTenant(tenantId: string) {
+  const res = await api.get(`/admin/tenants/${tenantId}`);
+  return res.data;
+}
+
+export async function adminGetTenantDrafts(tenantId: string, status?: string) {
+  const res = await api.get(`/admin/tenants/${tenantId}/drafts`, {
+    params: status ? { status } : {},
   });
   return res.data;
 }
 
-export async function getKatipDrafts(tenantId: string): Promise<KatipDraftsResponse> {
-  const res = await api.get<KatipDraftsResponse>('/katip/drafts', {
-    headers: { 'X-Tenant-ID': tenantId },
-  });
+export async function adminGetTenantDraft(tenantId: string, draftId: string) {
+  const res = await api.get(`/admin/tenants/${tenantId}/drafts/${draftId}`);
   return res.data;
 }
 
