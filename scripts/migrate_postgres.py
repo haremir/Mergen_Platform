@@ -105,13 +105,13 @@ def run_migration():
             admin = DBAdminUser(
                 id="admin_main_id",
                 email="admin@mergen.com",
-                hashed_password=get_password_hash("Admin123!"),
+                hashed_password=get_password_hash("Mergen2026!"),
             )
             db.add(admin)
-            print("  + Super Admin created: admin@mergen.com / Admin123!")
+            print("  + Super Admin created: admin@mergen.com / Mergen2026!")
         else:
-            admin.hashed_password = get_password_hash("Admin123!")
-            print("  + Super Admin updated: admin@mergen.com / Admin123!")
+            admin.hashed_password = get_password_hash("Mergen2026!")
+            print("  + Super Admin updated: admin@mergen.com / Mergen2026!")
 
         # Seed Pilot Tenant
         tenant = db.query(DBTenant).filter(DBTenant.id == "pilot-dental-clinic-01").first()
@@ -120,18 +120,18 @@ def run_migration():
                 id="pilot-dental-clinic-01",
                 business_name="DentSmile Klinik",
                 email="ajans@dental.com",
-                hashed_password=get_password_hash("Ajans123!"),
+                hashed_password=get_password_hash("Mergen2026!"),
                 sector="dental_clinic",
                 plan="agency",
                 enabled_products=["katip"],
             )
             db.add(tenant)
-            print("  + Pilot Tenant created: pilot-dental-clinic-01 (ajans@dental.com / Ajans123!)")
+            print("  + Pilot Tenant created: pilot-dental-clinic-01 (ajans@dental.com / Mergen2026!)")
         else:
             tenant.email = "ajans@dental.com"
-            tenant.hashed_password = get_password_hash("Ajans123!")
+            tenant.hashed_password = get_password_hash("Mergen2026!")
             tenant.enabled_products = ["katip"]
-            print("  + Pilot Tenant updated: pilot-dental-clinic-01 (ajans@dental.com / Ajans123!)")
+            print("  + Pilot Tenant updated: pilot-dental-clinic-01 (ajans@dental.com / Mergen2026!)")
 
         # Seed default KatipBrandGuide
         project = db.query(KatipBrandGuide).filter(KatipBrandGuide.tenant_id == "pilot-dental-clinic-01").first()
