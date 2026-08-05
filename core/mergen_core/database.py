@@ -31,14 +31,22 @@ if "DATABASE_URL" not in os.environ:
                     os.environ["DATABASE_URL"] = _line.split("=", 1)[1].strip()
                     break
 
-DATABASE_URL: str = os.environ.get(
+raw_url = os.environ.get(
     "DATABASE_URL",
     "postgresql+asyncpg://postgres:postgres@localhost:5432/mergen_db",
 )
 
+# Normalize raw_url to asyncpg schema for async_engine
+if raw_url.startswith("postgresql://"):
+    DATABASE_URL: str = raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif raw_url.startswith("postgresql+psycopg2://"):
+    DATABASE_URL: str = raw_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+else:
+    DATABASE_URL: str = raw_url
+
 # Derived sync URL for psycopg2 (Alembic & sync Sessions)
 _SYNC_DATABASE_URL: str = DATABASE_URL.replace(
-    "postgresql+asyncpg://", "postgresql+psycopg2://"
+    "postgresql+asyncpg://", "postgresql+psycopg2://", 1
 )
 
 # ---------------------------------------------------------------------------
