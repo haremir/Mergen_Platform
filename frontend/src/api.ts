@@ -1,10 +1,19 @@
 import axios from 'axios';
 
 /* ─────────────────────────────────────────────────────────────
-   Axios instance — points to the FastAPI backend
+   Axios instance — points to the FastAPI backend (Cloud & Local)
    ───────────────────────────────────────────────────────────── */
+let rawBase =
+  (import.meta as any).env?.VITE_API_BASE_URL ??
+  (import.meta as any).env?.VITE_API_BASE ??
+  'http://localhost:8000/api';
+
+if (!rawBase.endsWith('/api')) {
+  rawBase = rawBase.replace(/\/+$/, '') + '/api';
+}
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: rawBase,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15_000,
 });

@@ -120,13 +120,24 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.on_event("startup")
 def startup_event():
-    """Seed the DBSectorPrompt table and start Katip autonomous scheduler on application startup."""
-    logger.info("Running startup event: seeding DBSectorPrompt table & launching Katip scheduler.")
+    """Autonomous Database Initializer & Startup Tasks."""
+    logger.info("Running startup event: auto-creating DB tables, seeding DBSectorPrompt & launching Katip scheduler.")
+    
+    # 1. Autonomous Database Table Creator (Cloud Ready)
+    try:
+        import mergen_core.db_models  # noqa: F401
+        import mergen_product_katip.models  # noqa: F401
+        import mergen_common.models  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+        logger.info("Base.metadata.create_all executed successfully on application startup.")
+    except Exception as _table_err:
+        logger.exception("Failed to auto-create database tables on startup: %s", _table_err)
+
+    # 2. Seed DBSectorPrompt
     try:
         from mergen_core.db_models import DBSectorPrompt
         from mergen_core.database import SessionLocal
         with SessionLocal() as session:
-            # Check if any exist
             count = session.query(DBSectorPrompt).count()
             if count == 0:
                 defaults = [
@@ -155,7 +166,7 @@ def startup_event():
     except Exception as exc:
         logger.exception("Failed to seed DBSectorPrompt: %s", exc)
 
-    # Mergen Kâtip Otonom Zamanlayıcısını Başlat
+    # 3. Mergen Kâtip Otonom Zamanlayıcısını Başlat
     try:
         from mergen_product_katip.scheduler import get_katip_scheduler
         scheduler = get_katip_scheduler()
@@ -178,35 +189,18 @@ def shutdown_event():
 
 
 # ---------------------------------------------------------------------------
-# CORS — allow Next.js dev server + any additional origins from env
+# CORS — allow all origins for cloud deployment test
 # ---------------------------------------------------------------------------
-_default_origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    # Kâtip editör frontend (frontend_katip/ dev server)
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-]
-_extra_origins = [
-    o.strip()
-    for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
-    if o.strip()
-]
-_all_origins: List[str] = list(dict.fromkeys(_default_origins + _extra_origins))
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_all_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Tenant-ID", "X-Request-ID"],
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["X-Request-ID"],
     max_age=600,
 )
 
-logger.info("CORS: allowed origins = %s", _all_origins)
+logger.info("CORS: configured with allow_origins=['*']")
 
 # ---------------------------------------------------------------------------
 # Dependency: WhatsApp Client (mock-safe factory)
@@ -1284,3 +1278,11 @@ try:
     logger.info("Kâtip router mounted at /api/katip with JWT auth")
 except ImportError as _katip_err:
     logger.warning("Kâtip router could not be loaded: %s", _katip_err)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    logger.info("Starting uvicorn server on 0.0.0.0:%d", port)
+    uvicorn.run("panel.api_server:app", host="0.0.0.0", port=port, reload=True)
+
