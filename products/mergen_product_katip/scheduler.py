@@ -54,10 +54,14 @@ def fetch_and_lock_next_topic(db: Session) -> Optional[KatipTopicQueue]:
     konuyu çekmelerini (race condition) imkansız kılar.
     """
     try:
+        now = _utcnow()
         # PostgreSQL dialect kontrolü — SKIP LOCKED desteği
         stmt = (
             select(KatipTopicQueue)
-            .where(KatipTopicQueue.status == "pending")
+            .where(
+                (KatipTopicQueue.status == "pending") |
+                ((KatipTopicQueue.status == "scheduled") & (KatipTopicQueue.scheduled_for <= now))
+            )
             .order_by(KatipTopicQueue.priority.desc(), KatipTopicQueue.created_at.asc())
             .limit(1)
         )
