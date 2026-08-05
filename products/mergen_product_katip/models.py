@@ -159,6 +159,10 @@ class KatipTopicQueue(Base):
     )
     topic_title: Mapped[str] = mapped_column(String(500), nullable=False)
     target_keywords: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    # SEO Brief alanları — Editör talimatları
+    target_subheadings: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
+    special_instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    scheduled_for: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending", index=True
     )

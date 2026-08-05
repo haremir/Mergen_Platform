@@ -121,6 +121,8 @@ def generate_draft_for_topic(
             tenant_id=tenant_id,
             topic_title=topic.topic_title,
             target_keywords=topic.target_keywords,
+            target_subheadings=getattr(topic, "target_subheadings", None) or None,
+            special_instructions=getattr(topic, "special_instructions", None),
             brand_guide_id=topic.brand_guide_id,
         )
 

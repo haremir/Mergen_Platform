@@ -121,6 +121,7 @@ class KatipPromptEngine:
         target_subheadings: Optional[List[str]] = None,
         target_faq_questions: Optional[List[str]] = None,
         brand_guide_id: Optional[str] = None,
+        special_instructions: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Qwen/GPT LLM için eksiksiz sistem ve kullanıcı prompt'unu üretir.
@@ -198,11 +199,14 @@ class KatipPromptEngine:
                 "  </sector_rules>",
             ])
 
-        h2_guideline = (
-            f"Makalede tam olarak verilen {len(target_subheadings)} adet H2 alt başlığı kullanılmalı, ekstra başlık uydurulmamalıdır."
-            if target_subheadings
-            else "Makale en az 3-5 adet H2 alt başlık içermelidir."
-        )
+        # Zorunlu alt başlık direktifi — eğer editör başlık verdiyse "en az 5 H2" kuralı devre dışı
+        if target_subheadings:
+            h2_guideline = (
+                f"ZORUNLU: Makalede TAM OLARAK şu {len(target_subheadings)} adet H2 alt başlığı kullanılmalı, "
+                f"ekstra H2 başlık EKLENMEZ, mevcut başlıklar değiştirilemez."
+            )
+        else:
+            h2_guideline = "Makale en az 3-5 adet H2 alt başlık içermelidir."
 
         system_prompt_parts.extend([
             "  <formatting_guidelines>",
@@ -212,6 +216,9 @@ class KatipPromptEngine:
             f"    <guideline>{h2_guideline}</guideline>",
             "    <guideline>Her alt başlığın altında en az 2-3 detaylı paragraf yer almalıdır. Konuları yüzeysel geçmek YASAKTIR.</guideline>",
             "    <guideline>Makale sonuna dış bağlantı/link içermeyen 3 soruluk bir SSS (Sık Sorulan Sorular) bölümü ekle.</guideline>",
+            "    <guideline>KOHEZYON KURALI: Her paragraf ve cümle, bir önceki cümlenin anlamsal devamı olmalıdır. "
+            "Paragraflar arası kopukluk ve rastgele bilgi sıçramaları KESİNLİKLE YASAKTIR. "
+            "Geçişleri doğal bağlaçlarla sağla.</guideline>",
             "  </formatting_guidelines>",
             "</system_instructions>"
         ])
@@ -270,7 +277,14 @@ class KatipPromptEngine:
         # Editör Revizyon Notu (Var İse)
         if additional_feedback:
             user_prompt_parts.append(
-                f"## EDİTÖRÜN YENİ REVİZYON NOTU (ÖNCELİKLİ UYGULA):\n\"{additional_feedback}\""
+                f"## EDİTÖRÜN YENİDEN REVİZYON NOTU (ÖNCELİKLİ UYGULA):\n\"{additional_feedback}\""
+            )
+
+        # ⚠️ Editörün Özel Talimatı — En belirgin konuma yerleştir
+        if special_instructions and special_instructions.strip():
+            user_prompt_parts.append(
+                f"\n⚠️ EDİTÖRÜN ÖZEL TALİMATI (MUTLAKA UYULACAK — HİÇBİR KOŞULDA GÖRMEZDEN GELİNMEZ):\n"
+                f"{special_instructions.strip()}"
             )
 
         # Çıktı Formatı Talimatı

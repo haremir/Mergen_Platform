@@ -91,13 +91,16 @@ class TopicQueueItem(BaseModel):
     tenant_id: str
     brand_guide_id: Optional[str] = None
     topic_title: str
-    target_keywords: Optional[List[str]]
+    target_keywords: Optional[List[str]] = None
+    target_subheadings: Optional[List[str]] = None
+    special_instructions: Optional[str] = None
+    scheduled_for: Optional[str] = None
     status: str
     priority: int
     retry_count: int
     created_at: str
-    locked_at: Optional[str]
-    processed_at: Optional[str]
+    locked_at: Optional[str] = None
+    processed_at: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -150,6 +153,9 @@ class TopicCreateRequest(BaseModel):
     topic_title: str = Field(..., min_length=3, max_length=500)
     brand_guide_id: Optional[str] = None
     target_keywords: Optional[List[str]] = None
+    target_subheadings: Optional[List[str]] = Field(default=None, description="Editörün zorunlu kıldığı H2 başlıkları")
+    special_instructions: Optional[str] = Field(default=None, max_length=4000, description="Editörün özel talimatları")
+    scheduled_for: Optional[str] = Field(default=None, description="İleri tarihli üretim için ISO datetime string (nullable)")
     priority: int = Field(default=5, ge=1, le=10)
 
 
@@ -159,6 +165,7 @@ class TopicCreateResponse(BaseModel):
     tenant_id: str
     brand_guide_id: Optional[str]
     topic_title: str
+    scheduled_for: Optional[str] = None
 
 
 class DraftStatusUpdateRequest(BaseModel):
@@ -437,6 +444,9 @@ def list_topics(
             TopicQueueItem(
                 id=t.id, tenant_id=t.tenant_id, brand_guide_id=t.brand_guide_id,
                 topic_title=t.topic_title, target_keywords=t.target_keywords,
+                target_subheadings=getattr(t, "target_subheadings", None),
+                special_instructions=getattr(t, "special_instructions", None),
+                scheduled_for=t.scheduled_for.isoformat() if getattr(t, "scheduled_for", None) else None,
                 status=t.status, priority=t.priority, retry_count=t.retry_count,
                 created_at=t.created_at.isoformat(),
                 locked_at=t.locked_at.isoformat() if t.locked_at else None,
@@ -451,19 +461,43 @@ def list_topics(
 
 @router.post("/topics", response_model=TopicCreateResponse, status_code=201, summary="Konu ekle")
 def create_topic(body: TopicCreateRequest, tenant_id: str = Depends(get_current_tenant)) -> TopicCreateResponse:
+    """Konu kuyruğuna yeni bir konu ekler. SEO Brief alanlarını (alt başlıklar, özel talimat, zamanlanmış üretim) destekler."""
+    from datetime import timezone
     db = _get_db()
     try:
+        # scheduled_for ISO string'i datetime'a çevir
+        scheduled_dt = None
+        if body.scheduled_for:
+            try:
+                from datetime import datetime as _dt
+                scheduled_dt = _dt.fromisoformat(body.scheduled_for.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
+        # Zamanlanmış görev ise başlangıçta "scheduled" statüsünde başlat
+        initial_status = "scheduled" if scheduled_dt else "pending"
+
         topic = KatipTopicQueue(
-            tenant_id=tenant_id, brand_guide_id=body.brand_guide_id,
-            topic_title=body.topic_title.strip(), target_keywords=body.target_keywords,
-            priority=body.priority, status="pending",
+            tenant_id=tenant_id,
+            brand_guide_id=body.brand_guide_id,
+            topic_title=body.topic_title.strip(),
+            target_keywords=body.target_keywords,
+            target_subheadings=body.target_subheadings or [],
+            special_instructions=body.special_instructions,
+            scheduled_for=scheduled_dt,
+            priority=body.priority,
+            status=initial_status,
         )
         db.add(topic)
         db.commit()
         db.refresh(topic)
         return TopicCreateResponse(
-            status="created", topic_id=topic.id, tenant_id=tenant_id,
-            brand_guide_id=topic.brand_guide_id, topic_title=topic.topic_title,
+            status="created",
+            topic_id=topic.id,
+            tenant_id=tenant_id,
+            brand_guide_id=topic.brand_guide_id,
+            topic_title=topic.topic_title,
+            scheduled_for=topic.scheduled_for.isoformat() if topic.scheduled_for else None,
         )
     finally:
         db.close()
