@@ -1,14 +1,29 @@
 import axios from "axios";
 
-let rawBase =
-  (import.meta as any).env?.VITE_API_BASE_URL ??
-  (import.meta as any).env?.VITE_API_BASE ??
+function sanitizeApiBaseUrl(raw: string): string {
+  let url = (raw || "").trim();
+  // Strip markdown, bracket or quotes artifacts like [https://...] or "https://..."
+  url = url.replace(/^[\[\("']+|[\]\)"']+$/g, "").trim();
+  // Fix single slash after protocol e.g. https:/domain -> https://domain
+  url = url.replace(/^(https?):\/([^\/])/, "$1://$2");
+  // Prepend https:// if protocol is missing (unless localhost)
+  if (!/^https?:\/\//i.test(url)) {
+    url = "https://" + url;
+  }
+  // Ensure it ends with /api
+  url = url.replace(/\/+$/, "");
+  if (!url.endsWith("/api")) {
+    url = url + "/api";
+  }
+  return url;
+}
+
+const rawBase =
+  (import.meta as any).env?.VITE_API_BASE_URL ||
+  (import.meta as any).env?.VITE_API_BASE ||
   "http://localhost:8000/api";
 
-if (!rawBase.endsWith("/api")) {
-  rawBase = rawBase.replace(/\/+$/, "") + "/api";
-}
-const API_BASE = rawBase;
+const API_BASE = sanitizeApiBaseUrl(rawBase);
 
 export const TOKEN_KEY = "katip_jwt_token";
 
