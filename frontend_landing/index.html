@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MERGEN // Yapay Zekanın En Saf Hali</title>
+  <meta name="description" content="Mergen AI Business Platform - Kâtip, Dental ve Desk otonom yapay zeka ürünleri." />
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body class="bg-black text-white antialiased">
+  <!-- Interactive Dot Matrix Canvas Background -->
+  <canvas id="matrix-canvas"></canvas>
+
+  <!-- Sleek Sticky Header -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="#" class="brand-link">
+        <div class="logo-blend-wrapper">
+          <img src="/logo.png" alt="Mergen Logo" class="nav-logo-img" />
+        </div>
+        <span class="brand-name">MERGEN</span>
+      </a>
+
+      <nav class="nav-menu">
+        <a href="#katip" class="nav-item"><span class="ndot">01</span> KÂTİP</a>
+        <a href="#dental" class="nav-item nav-emerald"><span class="ndot">02</span> DENTAL <span class="pill-soon">Q3</span></a>
+        <a href="#desk" class="nav-item"><span class="ndot">03</span> DESK</a>
+      </nav>
+
+      <div class="nav-cta">
+        <a href="http://localhost:5173" target="_blank" class="btn-nothing btn-sm">
+          <span class="btn-dot"></span> PLATFORMA GİRİŞ
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO SECTION -->
+    <section class="hero">
+      <div class="hero-content">
+        <!-- High-End Logo Presentation Stage -->
+        <div class="glyph-logo-stage" id="hero-logo-stage">
+          <div class="glyph-aura"></div>
+          <div class="glyph-matrix-ring"></div>
+          <div class="logo-screen-wrapper">
+            <img src="/logo.png" alt="Mergen Wolf Logo" class="hero-logo-img" id="hero-wolf-img" />
+          </div>
+          <div class="glyph-tag">// MERGEN OS</div>
+        </div>
+
+        <div class="status-badge">
+          <span class="pulse-red"></span>
+          <span>PURE INSTINCT // AI PLATFORM</span>
+        </div>
+
+        <h1 class="hero-title">
+          YAPAY ZEKANIN<br />
+          <span class="text-gradient">EN SAF HALİ.</span>
+        </h1>
+
+        <p class="hero-desc">
+          İşletmeniz ve kliniklerinize özel otonom yapay zeka ekosistemi.
+        </p>
+
+        <div class="hero-actions">
+          <a href="#katip" class="btn-nothing btn-lg btn-white">
+            <span class="btn-dot cyan"></span> MERGEN KÂTİP
+          </a>
+          <a href="#dental" class="btn-nothing btn-lg btn-glass">
+            <span class="btn-dot emerald"></span> MERGEN DENTAL
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCT 01: MERGEN KÂTİP -->
+    <section id="katip" class="section">
+      <div class="container">
+        <div class="section-tag">// PRODUCT 01</div>
+        <h2 class="section-heading">KÂTİP.</h2>
+        <p class="section-lead">SEO Uyumlu Blog & Sosyal Medya İletişim Otopilotu.</p>
+
+        <div class="product-card glass">
+          <div class="card-grid">
+            <div class="card-info">
+              <div class="feature-item">
+                <span class="feature-num">01</span>
+                <div>
+                  <h4>SEO Blog Makaleleri</h4>
+                  <p>Arama motorlarında üst sıraya taşıyan özgün makaleleri saniyeler içinde kurgular.</p>
+                </div>
+              </div>
+
+              <div class="feature-item">
+                <span class="feature-num">02</span>
+                <div>
+                  <h4>Marka Tonu Uyarlaması</h4>
+                  <p>Kurumsal dilinizi öğrenir ve tüm paylaşımlarda aynı özgün üslubu korur.</p>
+                </div>
+              </div>
+
+              <div class="feature-item">
+                <span class="feature-num">03</span>
+                <div>
+                  <h4>Sosyal Medya Dağıtımı</h4>
+                  <p>LinkedIn, Instagram ve WordPress için hazır paylaşım metinleri üretir.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sleek Minimal Live Preview Studio -->
+            <div class="card-preview">
+              <div class="preview-header">
+                <span class="preview-dot"></span>
+                <span>KÂTİP_STUDIO</span>
+              </div>
+              <div class="preview-controls">
+                <button class="topic-chip active" data-topic="Yapay Zeka & İş Dünyası">İş Dünyası</button>
+                <button class="topic-chip" data-topic="Diş Hekimliğinde Dijital Dönüşüm">Sağlık & Klinik</button>
+                <button class="topic-chip" data-topic="E-Ticarette Dönüşüm Rehberi">E-Ticaret</button>
+              </div>
+              <button id="generate-btn" class="btn-nothing btn-full">
+                <span class="btn-dot cyan"></span> İÇERİK OLUŞTUR
+              </button>
+              <div id="katip-console" class="console-box">
+                <span class="dim-text">// İçerik üretimi için yukarıdaki butona dokunun...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCT 02: MERGEN DENTAL -->
+    <section id="dental" class="section">
+      <div class="container">
+        <div class="section-tag tag-emerald">// PRODUCT 02 — YAKINDA</div>
+        <h2 class="section-heading">DENTAL.</h2>
+        <p class="section-lead">Diş Klinikleri İçin Akıllı Anamnez ve Otomatik Randevu Asistanı.</p>
+
+        <div class="product-card glass border-emerald">
+          <div class="dental-grid">
+            <div class="dental-workflow">
+              <div class="flow-step">
+                <div class="step-badge">1</div>
+                <div class="step-content">
+                  <h4>Akıllı Anamnez</h4>
+                  <p>Hastanın ağrı ve şikayet türünü özel klinik sorularla detaylı analiz eder.</p>
+                </div>
+              </div>
+
+              <div class="flow-step">
+                <div class="step-badge">2</div>
+                <div class="step-content">
+                  <h4>Doktor & Slot Eşleme</h4>
+                  <p>Endodonti, Ortodonti veya Cerrahi uzmanlık alanına göre en uygun takvim saatini eşleştirir.</p>
+                </div>
+              </div>
+
+              <div class="flow-step">
+                <div class="step-badge">3</div>
+                <div class="step-content">
+                  <h4>Hekim Mobil Onayı</h4>
+                  <p>Randevu talebi doktorun onay paneline düşer, tek tıkla hastaya onay iletilir.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Interactive Chat Preview -->
+            <div class="dental-sim-box">
+              <div class="sim-top">
+                <span class="sim-pulse"></span>
+                <span>DENTBOT CANLI SİMÜLASYON</span>
+              </div>
+              <div class="sim-messages" id="dental-sim-messages">
+                <div class="msg bot">
+                  <span>🦷 Merhaba! Diş şikayetinizi (gece ağrısı, şeffaf plak, implant vb.) kısaca belirtebilir misiniz?</span>
+                </div>
+              </div>
+              <div class="sim-actions">
+                <button class="sim-btn" data-type="gece_agrisi">"Gece Diş Ağrısı var"</button>
+                <button class="sim-btn" data-type="seffaf_plak">"Şeffaf Plak Bilgisi"</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCT 03: MERGEN DESK -->
+    <section id="desk" class="section">
+      <div class="container">
+        <div class="section-tag">// PRODUCT 03</div>
+        <h2 class="section-heading">DESK.</h2>
+        <p class="section-lead">7/24 Kesintisiz WhatsApp ve Telegram Müşteri İletişimi.</p>
+
+        <div class="desk-row">
+          <div class="desk-box glass">
+            <h3>WhatsApp & Telegram</h3>
+            <p>Müşterilerinizin sorularını anında yanıtlar, canlı temsilciye aktarır.</p>
+          </div>
+
+          <div class="desk-box glass">
+            <h3>Akıllı Bilgi Bankası</h3>
+            <p>Kurumsal belgelerinizden öğrenir ve sadece doğru onaylı bilgiler verir.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>MERGEN AI PLATFORM</span>
+      <span class="clock" id="clock">00:00:00</span>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
