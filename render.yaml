@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: mergen-platform-api
+    env: python
+    buildCommand: pip install uv && uv sync
+    startCommand: PYTHONPATH=core:packages:products:shared:. uv run uvicorn panel.api_server:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
