@@ -37,3 +37,8 @@ dist/
 *.sqlite
 *.db
 mergen_local.db
+mergen_local.db*
+
+# Scratch & temporary diagnostic scripts
+scratch/
+
